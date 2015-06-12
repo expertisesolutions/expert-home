@@ -1,0 +1,7 @@
+
+project expert-home ;
+
+exe expert-home : src/main.cpp /boost//system
+ : <include>include
+ ;
+

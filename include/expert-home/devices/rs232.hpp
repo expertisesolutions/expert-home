@@ -8,19 +8,37 @@
 
 #include <boost/asio.hpp>
 
-namespace eh { namespace device {
+#include <boost/signals2/signal.hpp>
 
-struct rs232 {
+// namespace eh { namespace device {
 
-  rs232(boost::asio::io_service& service)
-    : io_service(service)
-  {
-  }
+// struct rs232 {
 
-  boost::asio::io_service& io_service;
-};
+//   rs232(boost::asio::io_service& service
+//         , const char* device)
+//     : port(service, device), io_service(service)
+//   {
+//     boost::asio::async_read(port, boost::asio::mutable_buffers_1(buffer.begin(), buffer.size())
+//                             , std::bind([] {return false;})
+//                             , std::bind([] {}));
+//   }
+
+//   void watch(boost::signals2::signal<void(std::string, std::vector<>)>& signal)
+//   {
+    
+//   }
+
+//   void command(const char*)
+//   {
+    
+//   }
+
+//   std::array<char, 1024> buffer;
+//   boost::asio::serial_port port;
+//   boost::asio::io_service& io_service;
+// };
       
-} }
+// } }
 
 #endif
 

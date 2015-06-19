@@ -1,7 +1,12 @@
 
 project expert-home ;
 
-exe expert-home : src/main.cpp /boost//system
- : <include>include
+exe expert-home : src/main.cpp /boost//system /boost//signals
+ : <include>include <toolset>gcc:<cxxflags>-std=c++14 <toolset>clang:<cxxflags>-std=c++14
+   <toolset>clang:<cxxflags>-Wno-unused-local-typedef
+ <threading>multi
  ;
+
+install stage : expert-home ;
+
 

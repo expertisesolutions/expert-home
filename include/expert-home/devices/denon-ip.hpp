@@ -52,9 +52,9 @@ struct denon_ip {
             using x3::omit; using x3::eps; using x3::char_;
             auto no_args = x3::attr(std::vector<argument_variant>());
             auto up_down_or_number = (string("UP") | string("DOWN") | int_);
-            auto up_down = (string("UP") | string("DOWN"));
+            //auto up_down = (string("UP") | string("DOWN"));
             auto on_off = (string("ON") | string("OFF"));
-            auto on_off_up_down_or_number = string("ON") | string("OFF") | string("UP") | string("DOWN") | int_;
+            //auto on_off_up_down_or_number = string("ON") | string("OFF") | string("UP") | string("DOWN") | int_;
             
             bool b = boost::spirit::x3::parse
               (first, last

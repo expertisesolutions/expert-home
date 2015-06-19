@@ -9,6 +9,8 @@
 #include <expert-home/devices/rs232.hpp>
 #include <expert-home/devices/denon-ip.hpp>
 
+#include <lua.hpp>
+
 struct print_visit
 {
   void operator()(std::string const& string) const
@@ -22,7 +24,22 @@ struct print_visit
   }
 };
 
-void print(std::string command, std::vector<eh::argument_variant> args)
+struct lua_push_visitor
+{
+  lua_State* L;
+  
+  void operator()(std::string const& string) const
+  {
+    lua_pushstring(L, string.c_str());
+  }
+
+  void operator()(int i) const
+  {
+    lua_pushnumber(L, i);
+  }
+};
+
+void print(lua_State* L, std::string command, std::vector<eh::argument_variant> args)
 {
   std::cout << "command " << command << " with " << args.size() << " arguments ";
   for(auto const& arg : args)
@@ -30,6 +47,17 @@ void print(std::string command, std::vector<eh::argument_variant> args)
     boost::apply_visitor(print_visit(), arg);
   }
   std::endl(std::cout);
+
+  lua_getglobal(L, "device_handler");
+  lua_pushstring(L, command.c_str());
+  for(auto const& arg : args)
+  {
+    boost::apply_visitor(lua_push_visitor{L}, arg);
+  }
+  if(lua_pcall(L, 1 + args.size(), 0, 0))
+    {
+      std::cout << "failed calling device handler" << std::endl;
+    }
 }
 
 int main()
@@ -37,7 +65,22 @@ int main()
   boost::asio::io_service io_service;
 
   boost::signals2::signal<void(std::string, std::vector<eh::argument_variant>)> signal;
-  signal.connect(&::print);
+
+  lua_State* L = luaL_newstate();
+  luaL_openlibs(L);
+  if(luaL_loadfile(L, "lua/setup.lua"))
+    {
+      std::cout << "Error loading lua setup.lua" << std::endl;
+      return -1;
+    }
+
+  if(lua_pcall(L, 0, 0, 0))
+    {
+      std::cout << "Error running lua setup.lua" << std::endl;
+      return -1;
+    }
+
+  signal.connect(std::bind(&::print, L, std::placeholders::_1, std::placeholders::_2));
   
   // eh::device::rs232 lg(io_service, "/dev/ttyACM0");
   // lg.watch(signal);

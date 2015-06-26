@@ -18,8 +18,30 @@
 namespace eh { namespace device {
 
 namespace denon_detail {
-  boost::spirit::x3::rule<class identifier, std::string> const identifier("identifier");
-  BOOST_SPIRIT_DEFINE(identifier = +boost::spirit::x3::alpha);
+  // boost::spirit::x3::rule<class identifier, std::string> const identifier("identifier");
+  // BOOST_SPIRIT_DEFINE(identifier = +boost::spirit::x3::alpha);
+
+namespace fusion = boost::fusion;
+  
+namespace x3 = boost::spirit::x3;
+using x3::string; using x3::int_;
+using x3::omit; using x3::eps; using x3::char_;
+  
+x3::rule<class switch_input, fusion::vector2<std::string, std::vector<std::string>>> const switch_input("switch_input");
+auto switch_input_def =
+ (string("SI")
+  >> (string("PHONO") | string("CD") | string("TUNER") | string("DVD")
+      | string("BD") | string("TV") | string("SAT/CBL") | string("MPLAY")
+      | string("GAME") | string("HDRADIO") | string("NET") | string("PANDORA")
+      | string("SIRIUSXM") | string("SPOTIFY") | string("LASTFM") | string("FLICKR")
+      | string("IRADIO") | string("SERVER") | string("FAVORITES") | string("BT")
+      | string("USB/IPOD") | string("USB") | string("IPD") | string("IRP")
+      | string("FVP")
+      // | (string("AUX") >> int_)
+      )
+  );
+  //BOOST_SPIRIT_DEFINE(switch_input = switch_input_def);
+
 }
     
 struct denon_ip {
@@ -34,7 +56,26 @@ struct denon_ip {
   {
     std::cout << "Should change input to " << input << std::endl;
 
-    
+    namespace x3 = boost::spirit::x3;
+    namespace fusion = boost::fusion;
+
+    std::string output;
+    if(x3::generate(std::back_inserter(output)
+                    , denon_detail::switch_input_def >> x3::omit['\r']
+                    , fusion::vector2<std::string, std::string>("SI", input)))
+      {
+        std::cout << "generated! yay (" << output.size() << ") |" << output << '|' << std::endl;
+        boost::asio::write(socket, boost::asio::const_buffers_1(&output[0], output.size())
+                           // , [this] (boost::system::error_code const& ec, std::size_t size)
+                           // {
+                           //   std::cout << "sent I think" << std::endl;
+                           // }
+                           );
+      }
+    else
+      {
+        std::cout << "failed generation" << std::endl;
+      }
   }
   
   void handler(boost::system::error_code const& ec, std::size_t size)
@@ -101,16 +142,7 @@ struct denon_ip {
                         |  (string("ZRL") >> omit[' '] >> up_down_or_number))
                    )
                  | (string("MU") >> on_off)
-                 | (string("SI")
-                    >> (string("PHONO") | string("CD") | string("TUNER") | string("DVD")
-                        | string("BD") | string("TV") | string("SAT/CBL") | string("MPLAY")
-                        | string("GAME") | string("HDRADIO") | string("NET") | string("PANDORA")
-                        | string("SIRIUSXM") | string("SPOTIFY") | string("LASTFM") | string("FLICKR")
-                        | string("IRADIO") | string("SERVER") | string("FAVORITES") | string("BT")
-                        | string("USB/IPOD") | string("USB") | string("IPD") | string("IRP")
-                        | string("FVP")
-                        | (string("AUX") >> int_)
-                        ))
+                 | denon_detail::switch_input_def
                  | (string("ZM")
                     >> (string("ON") | string("OFF")
                         | (string("FAVORITE") >> int_)

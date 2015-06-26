@@ -8,6 +8,6 @@ function device_handler(device, command, arg1, arg2, arg3, arg4)
       if(arg1 > 99) then vol = arg1/10 end
       print ('master volume '..vol)
    end
-   device:change_input('HDMI1')
+   device:change_input('GAME')
 end
 

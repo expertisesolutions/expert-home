@@ -1,14 +1,12 @@
 
 project expert-home ;
 
-alias lua52 : : : : <cxxflags>"`pkg-config --cflags lua52`" <linkflags>"`pkg-config --libs lua52`" ;
-
-exe expert-home : src/main.cpp /boost//system /boost//signals lua52
+exe expert-home : src/main.cpp /boost//system /boost//signals /lua//lua
+  /luabind//luabind
  : <include>include <toolset>gcc:<cxxflags>-std=c++14 <toolset>clang:<cxxflags>-std=c++14
    <toolset>clang:<cxxflags>-Wno-unused-local-typedef
    <threading>multi
+   <link>static
  ;
 
 install stage : expert-home ;
-
-

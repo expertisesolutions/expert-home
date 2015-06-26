@@ -8,8 +8,15 @@
 #include <boost/asio.hpp>
 #include <expert-home/devices/rs232.hpp>
 #include <expert-home/devices/denon-ip.hpp>
+#include <expert-home/devices/lua/avr.hpp>
 
 #include <lua.hpp>
+
+#include <luabind/luabind.hpp>
+
+namespace eh { namespace devices { namespace lua {
+avr_impl_base::~avr_impl_base() {}
+} } }
 
 struct print_visit
 {
@@ -27,7 +34,7 @@ struct print_visit
 struct lua_push_visitor
 {
   lua_State* L;
-  
+
   void operator()(std::string const& string) const
   {
     lua_pushstring(L, string.c_str());
@@ -39,7 +46,7 @@ struct lua_push_visitor
   }
 };
 
-void print(lua_State* L, std::string command, std::vector<eh::argument_variant> args)
+void print(lua_State* L, luabind::object device, std::string command, std::vector<eh::argument_variant> args)
 {
   std::cout << "command " << command << " with " << args.size() << " arguments ";
   for(auto const& arg : args)
@@ -49,12 +56,13 @@ void print(lua_State* L, std::string command, std::vector<eh::argument_variant> 
   std::endl(std::cout);
 
   lua_getglobal(L, "device_handler");
+  device.push(L);
   lua_pushstring(L, command.c_str());
   for(auto const& arg : args)
   {
     boost::apply_visitor(lua_push_visitor{L}, arg);
   }
-  if(lua_pcall(L, 1 + args.size(), 0, 0))
+  if(lua_pcall(L, 2 + args.size(), 0, 0))
     {
       std::cout << "failed calling device handler" << std::endl;
     }
@@ -80,11 +88,15 @@ int main()
       return -1;
     }
 
-  signal.connect(std::bind(&::print, L, std::placeholders::_1, std::placeholders::_2));
+  luabind::open(L);
+  eh::devices::lua::register_avr(L);
   
   // eh::device::rs232 lg(io_service, "/dev/ttyACM0");
   // lg.watch(signal);
   eh::device::denon_ip avr(io_service, "denon");
+
+  luabind::object avr_obj(L, eh::devices::lua::avr(avr));
+  signal.connect(std::bind(&::print, L, avr_obj, std::placeholders::_1, std::placeholders::_2));
   avr.watch(signal);
 
   std::cout << "watching denon" << std::endl;

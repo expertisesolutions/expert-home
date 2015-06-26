@@ -30,6 +30,12 @@ struct denon_ip {
   {
   }
 
+  void change_input(std::string const& input)
+  {
+    std::cout << "Should change input to " << input << std::endl;
+
+    
+  }
   
   void handler(boost::system::error_code const& ec, std::size_t size)
   {

@@ -5,6 +5,7 @@ exe expert-home : src/main.cpp /boost//system /boost//signals /lua//lua
   /luabind//luabind
  : <include>include <toolset>gcc:<cxxflags>-std=c++14 <toolset>clang:<cxxflags>-std=c++14
    <toolset>clang:<cxxflags>-Wno-unused-local-typedef
+   <toolset>clang:<cxxflags>-Wno-deprecated-declarations
    <threading>multi
    <link>static
  ;

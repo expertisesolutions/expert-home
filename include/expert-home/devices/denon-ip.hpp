@@ -47,7 +47,7 @@ auto switch_input_def =
 struct denon_ip {
 
   denon_ip(boost::asio::io_service& service
-           , const char* hostname)
+           , std::string hostname)
     : socket(service), signal(nullptr), hostname(hostname)
   {
   }
@@ -283,7 +283,7 @@ struct denon_ip {
   std::array<char, 1024> buffer;
   boost::asio::ip::tcp::socket socket;
   boost::signals2::signal<void(std::string, std::vector<argument_variant>)>* signal;
-  const char* hostname;
+  std::string hostname;
 };
       
 } }

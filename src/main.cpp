@@ -8,14 +8,20 @@
 #include <boost/asio.hpp>
 #include <expert-home/devices/rs232.hpp>
 #include <expert-home/devices/denon-ip.hpp>
+#include <expert-home/devices/lg-ip.hpp>
 #include <expert-home/devices/lua/avr.hpp>
+#include <expert-home/devices/lua/tv.hpp>
 
 #include <lua.hpp>
 
 #include <luabind/luabind.hpp>
+#include <luabind/tag_function.hpp>
 
 namespace eh { namespace devices { namespace lua {
 avr_impl_base::~avr_impl_base() {}
+} } }
+namespace eh { namespace devices { namespace lua {
+tv_impl_base::~tv_impl_base() {}
 } } }
 
 struct print_visit
@@ -76,28 +82,51 @@ int main()
 
   lua_State* L = luaL_newstate();
   luaL_openlibs(L);
-  if(luaL_loadfile(L, "lua/setup.lua"))
-    {
-      std::cout << "Error loading lua setup.lua" << std::endl;
-      return -1;
-    }
-
-  if(lua_pcall(L, 0, 0, 0))
-    {
-      std::cout << "Error running lua setup.lua" << std::endl;
-      return -1;
-    }
 
   luabind::open(L);
   eh::devices::lua::register_avr(L);
-  
-  // eh::device::rs232 lg(io_service, "/dev/ttyACM0");
-  // lg.watch(signal);
-  eh::device::denon_ip avr(io_service, "denon");
+  eh::devices::lua::register_tv(L);
 
-  luabind::object avr_obj(L, eh::devices::lua::avr(avr));
-  signal.connect(std::bind(&::print, L, avr_obj, std::placeholders::_1, std::placeholders::_2));
-  avr.watch(signal);
+  std::map<std::string, eh::device::lg_ip> lgs;
+  std::map<std::string, eh::device::denon_ip> denons;
+  
+  luabind::module(L, "devices")
+  [
+     luabind::def("lg",
+                  luabind::tag_function<luabind::object(std::string, std::string, std::string)>
+                  ([&] (std::string name, std::string hostname, std::string pass) -> luabind::object
+                  {
+                    auto iterator = lgs.emplace
+                      (name, eh::device::lg_ip{io_service, hostname, pass}).first;
+                    luabind::object lg_obj(L, eh::devices::lua::tv(iterator->second));
+                    signal.connect(std::bind(&::print, L, lg_obj, std::placeholders::_1, std::placeholders::_2));
+                    iterator->second.watch(signal);
+                    return lg_obj;
+                  }))
+   , luabind::def("denon",
+                  luabind::tag_function<luabind::object(std::string, std::string)>
+                  ([&] (std::string name, std::string hostname) -> luabind::object
+                  {
+                    auto iterator = denons.emplace
+                      (name, eh::device::denon_ip{io_service, hostname}).first;
+                    luabind::object denon_obj(L, eh::devices::lua::avr(iterator->second));
+                    signal.connect(std::bind(&::print, L, denon_obj, std::placeholders::_1, std::placeholders::_2));
+                    iterator->second.watch(signal);
+                    return denon_obj;
+                  }))
+  ];
+
+  if(luaL_loadfile(L, "lua/setup.lua"))
+  {
+    std::cout << "Error loading lua setup.lua" << std::endl;
+    return -1;
+  }
+
+  if(lua_pcall(L, 0, 0, 0))
+  {
+    std::cout << "Error running lua setup.lua" << std::endl;
+    return -1;
+  }
 
   std::cout << "watching denon" << std::endl;
   

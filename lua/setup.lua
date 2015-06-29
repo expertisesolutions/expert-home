@@ -1,13 +1,18 @@
 
 print("Hello World")
 
+devices = { lg = devices.lg('lg', 'tv', 'SMBDJA')
+            , avr = devices.denon('avr', 'denon')
+          }
+
 function device_handler(device, command, arg1, arg2, arg3, arg4)
    print ('lua command '.. command)
    if(command == "MV") then
       vol = arg1
       if(arg1 > 99) then vol = arg1/10 end
       print ('master volume '..vol)
+
+      devices.lg:change_input('1')
    end
-   device:change_input('GAME')
 end
 

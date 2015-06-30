@@ -8,12 +8,12 @@
 
 #include <boost/asio.hpp>
 
-#include <boost/signals2/signal.hpp>
-
 #include <boost/spirit/home/x3.hpp>
 #include <boost/fusion/include/vector.hpp>
 //#include <boost/spirit/home/support/extended_variant.hpp>
 #include <expert-home/argument_variant.hpp>
+
+#include <functional>
 
 namespace eh { namespace device {
 
@@ -48,7 +48,7 @@ struct denon_ip {
 
   denon_ip(boost::asio::io_service& service
            , std::string hostname)
-    : socket(service), signal(nullptr), hostname(hostname)
+    : socket(service), hostname(hostname)
   {
   }
 
@@ -226,7 +226,7 @@ struct denon_ip {
             if(b)
             {
               std::cout << "command successfully parsed" << std::endl;
-              (*signal)(boost::fusion::at_c<0>(value), boost::fusion::at_c<1>(value));
+              function(boost::fusion::at_c<0>(value), boost::fusion::at_c<1>(value));
             }
             else
             {
@@ -255,7 +255,7 @@ struct denon_ip {
     }
   }
   
-  void watch(boost::signals2::signal<void(std::string, std::vector<argument_variant>)>& signal)
+  void watch(std::function<void(std::string, std::vector<argument_variant>)> function)
   {
     boost::asio::ip::tcp::resolver resolver(socket.get_io_service());
     {
@@ -273,7 +273,7 @@ struct denon_ip {
                             }
                             , boost::bind(&denon_ip::handler, this, _1, _2)
                             );
-    this->signal = &signal;
+    this->function = function;
   }
 
   void command(const char*)
@@ -282,8 +282,8 @@ struct denon_ip {
 
   std::array<char, 1024> buffer;
   boost::asio::ip::tcp::socket socket;
-  boost::signals2::signal<void(std::string, std::vector<argument_variant>)>* signal;
   std::string hostname;
+  std::function<void(std::string, std::vector<argument_variant>)> function;
 };
       
 } }

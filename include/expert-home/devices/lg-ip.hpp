@@ -8,8 +8,7 @@
 
 #include <boost/asio.hpp>
 
-#include <boost/signals2/signal.hpp>
-
+#include <functional>
 #include <sstream>
 
 // #include <boost/spirit/home/x3.hpp>
@@ -88,7 +87,7 @@ namespace eh { namespace device {
 struct lg_ip
 {
   lg_ip(boost::asio::io_service& service, std::string hostname, std::string password)
-    : socket(service), watch_socket(service), signal(nullptr), hostname(hostname), password(password)
+    : socket(service), watch_socket(service), hostname(hostname), password(password)
   {
     boost::asio::ip::tcp::resolver resolver(watch_socket.get_io_service());
     {
@@ -138,7 +137,7 @@ struct lg_ip
                        );
   }
   
-  void watch(boost::signals2::signal<void(std::string, std::vector<argument_variant>)>& signal)
+  void watch(std::function<void(std::string, std::vector<argument_variant>)> function)
   {
     socket.connect(endpoint);
 
@@ -152,12 +151,15 @@ struct lg_ip
       "Host: 192.168.33.54:8080\r\n" <<
       "Connection: Keep-Alive\r\n\r\n" << body;
 
+    boost::system::error_code ec;
+    
     std::string request = message.str();
     boost::asio::write(socket, boost::asio::const_buffers_1(&request[0], request.size())
                        // , [this] (boost::system::error_code const& ec, std::size_t size)
                        // {
                        //   std::cout << "sent I think" << std::endl;
                        // }
+                       , ec
                        );
 
     boost::asio::async_read(socket, boost::asio::mutable_buffers_1(buffer.begin(), buffer.size())
@@ -182,6 +184,9 @@ struct lg_ip
                               }
                             }
                             );
+
+
+    this->function = std::move(function);
   }
 
   void handle(std::size_t size)
@@ -203,6 +208,7 @@ struct lg_ip
                  , attr))
     {
       session = fusion::at_c<2>(attr);
+      std::cout << "LG Session " << session << std::endl;
     }
     else
     {
@@ -214,12 +220,12 @@ struct lg_ip
   std::array<char, 4096> buffer;
   boost::asio::ip::tcp::socket socket;
   boost::asio::ip::tcp::socket watch_socket;
-  boost::signals2::signal<void(std::string, std::vector<argument_variant>)>* signal;
   std::string hostname;
   std::string password;
   std::vector<std::string> commands;
   boost::asio::ip::tcp::endpoint endpoint;
   unsigned int session;
+  std::function<void(std::string, std::vector<argument_variant>)> function;
 };
 
 } }

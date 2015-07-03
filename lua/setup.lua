@@ -9,6 +9,7 @@ devices = { --lg = avail_devices.lg('lg', 'tv', 'SMBDJA'),
                                            'elF19le'),
           }
 
+print ('Hello World')
 function device_handler(device, command, arg1, arg2, arg3, arg4)
    print ('lua command '.. command)
    if(command == "MV") then

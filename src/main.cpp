@@ -10,6 +10,7 @@
 #include <expert-home/devices/rs232.hpp>
 #include <expert-home/devices/denon-ip.hpp>
 #include <expert-home/devices/lg-ip.hpp>
+#include <expert-home/devices/input/roku-ip.hpp>
 #include <expert-home/devices/lua/avr.hpp>
 #include <expert-home/devices/lua/tv.hpp>
 
@@ -89,6 +90,7 @@ int main()
   std::map<std::string, eh::device::lg_ip> lgs;
   std::map<std::string, eh::device::denon_ip> denons;
   std::map<std::string, eh::device::harmony_device> harmony_devices;
+  std::map<std::string, eh::device::roku_ip> roku_ips;
   
   luabind::module(L, "avail_devices")
   [
@@ -123,6 +125,16 @@ int main()
                     iterator->second.watch(std::bind(&::print, L, harmony_obj, std::placeholders::_1, std::placeholders::_2));
                     return harmony_obj;
                   }))
+   , luabind::def("roku_ip",
+                  luabind::tag_function<luabind::object(std::string, std::string, unsigned short)>
+                  ([&] (std::string name, std::string listen_ip, unsigned short port) -> luabind::object
+                  {
+                    auto iterator = roku_ips.emplace
+                      (name, eh::device::roku_ip{io_service, listen_ip, port}).first;
+                    luabind::object roku_obj(L, eh::devices::lua::tv(iterator->second));
+                    iterator->second.watch(std::bind(&::print, L, roku_obj, std::placeholders::_1, std::placeholders::_2));
+                    return roku_obj;
+                  }))
   ];
 
   if(luaL_loadfile(L, "lua/setup.lua"))
@@ -134,6 +146,9 @@ int main()
   if(lua_pcall(L, 0, 0, 0))
   {
     std::cout << "Error running lua setup.lua" << std::endl;
+
+    std::cout << "Error: " << lua_tostring(L, -1) << std::endl;
+    
     return -1;
   }
 

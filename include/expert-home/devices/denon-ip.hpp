@@ -40,6 +40,15 @@ auto switch_input_def =
       // | (string("AUX") >> int_)
       )
   );
+auto zone_master_def =
+  (string("ZM")
+   >> (string("ON")
+       | string("OFF")
+       //| (string("FAVORITE") >> int_)
+       //| (string("FAVORITE") >> int_ >> omit[' '] >> string("MEMORY"))
+       )
+   );
+  
   //BOOST_SPIRIT_DEFINE(switch_input = switch_input_def);
 
 }
@@ -50,32 +59,45 @@ struct denon_ip {
            , std::string hostname)
     : socket(service), hostname(hostname)
   {
+    std::cout << "denon_ip constructor" << std::endl;
   }
 
-  void change_input(std::string const& input)
+  void send_command(std::string const& command, std::vector<argument_variant> const& args)
   {
-    std::cout << "Should change input to " << input << std::endl;
+    std::cout << "Command " << command << " size " << args.size() << std::endl;
 
     namespace x3 = boost::spirit::x3;
     namespace fusion = boost::fusion;
 
+    std::string arg1;
+    if(!args.empty())
+      if(std::string const* string = boost::get<std::string>(&args[0]))
+        arg1 = *string;
+    std::cout << "arg1 " << arg1 << std::endl;
+    fusion::vector2<std::string, std::string> attr(command, arg1);
+
     std::string output;
     if(x3::generate(std::back_inserter(output)
-                    , denon_detail::switch_input_def >> x3::omit['\r']
-                    , fusion::vector2<std::string, std::string>("SI", input)))
-      {
-        std::cout << "generated! yay (" << output.size() << ") |" << output << '|' << std::endl;
-        boost::asio::write(socket, boost::asio::const_buffers_1(&output[0], output.size())
-                           // , [this] (boost::system::error_code const& ec, std::size_t size)
-                           // {
-                           //   std::cout << "sent I think" << std::endl;
-                           // }
-                           );
-      }
+                    ,
+                    (
+                     denon_detail::switch_input_def
+                     | denon_detail::zone_master_def
+                    )
+                    >> x3::omit['\r']
+                    , attr))
+    {
+      std::cout << "generated! yay (" << output.size() << ") |" << output << '|' << std::endl;
+      boost::asio::write(socket, boost::asio::const_buffers_1(&output[0], output.size())
+                         // , [this] (boost::system::error_code const& ec, std::size_t size)
+                         // {
+                         //   std::cout << "sent I think" << std::endl;
+                         // }
+                         );
+    }
     else
-      {
-        std::cout << "failed generation" << std::endl;
-      }
+    {
+      std::cout << "failed generation" << std::endl;
+    }
   }
   
   void handler(boost::system::error_code const& ec, std::size_t size)
@@ -143,12 +165,7 @@ struct denon_ip {
                    )
                  | (string("MU") >> on_off)
                  | denon_detail::switch_input_def
-                 | (string("ZM")
-                    >> (string("ON") | string("OFF")
-                        | (string("FAVORITE") >> int_)
-                        | (string("FAVORITE") >> int_ >> omit[' '] >> string("MEMORY"))
-                       )
-                   )
+                 | denon_detail::zone_master_def
                  | (string("SD")
                     >> (string("AUTO") | string("HDMI") | string("DIGITAL") | string("ANALOG")
                         | string("EXT.IN") | string("7.1IN") | string("NO"))
@@ -257,6 +274,7 @@ struct denon_ip {
   
   void watch(std::function<void(std::string, std::vector<argument_variant>)> function)
   {
+    std::cout << "watch" << std::endl;
     boost::asio::ip::tcp::resolver resolver(socket.get_io_service());
     {
       boost::asio::ip::tcp::resolver::iterator
@@ -264,6 +282,7 @@ struct denon_ip {
       if(iterator != boost::asio::ip::tcp::resolver::iterator())
         socket.connect(*iterator);
     }
+    std::cout << "watch" << std::endl;
     
     boost::asio::async_read(socket, boost::asio::mutable_buffers_1(buffer.begin(), buffer.size())
                             , [this] (boost::system::error_code const& ec, std::size_t size)
@@ -273,11 +292,8 @@ struct denon_ip {
                             }
                             , boost::bind(&denon_ip::handler, this, _1, _2)
                             );
+    std::cout << "watch" << std::endl;
     this->function = function;
-  }
-
-  void command(const char*)
-  {
   }
 
   std::array<char, 1024> buffer;

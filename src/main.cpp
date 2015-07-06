@@ -11,8 +11,8 @@
 #include <expert-home/devices/denon-ip.hpp>
 #include <expert-home/devices/lg-ip.hpp>
 #include <expert-home/devices/input/roku-ip.hpp>
-#include <expert-home/devices/lua/avr.hpp>
-#include <expert-home/devices/lua/tv.hpp>
+#include <expert-home/devices/lua/device.hpp>
+#include <expert-home/devices/lua/input.hpp>
 
 #include <lua.hpp>
 
@@ -20,10 +20,10 @@
 #include <luabind/tag_function.hpp>
 
 namespace eh { namespace devices { namespace lua {
-avr_impl_base::~avr_impl_base() {}
+device_impl_base::~device_impl_base() {}
 } } }
 namespace eh { namespace devices { namespace lua {
-tv_impl_base::~tv_impl_base() {}
+input_impl_base::~input_impl_base() {}
 } } }
 
 struct print_visit
@@ -73,6 +73,8 @@ void print(lua_State* L, luabind::object device, std::string command, std::vecto
   if(lua_pcall(L, 2 + args.size(), 0, 0))
     {
       std::cout << "failed calling device handler" << std::endl;
+
+      std::cout << "Error: " << lua_tostring(L, -1) << std::endl;
     }
 }
 
@@ -84,8 +86,8 @@ int main()
   luaL_openlibs(L);
 
   luabind::open(L);
-  eh::devices::lua::register_avr(L);
-  eh::devices::lua::register_tv(L);
+  eh::devices::lua::register_device(L);
+  eh::devices::lua::register_input(L);
 
   std::map<std::string, eh::device::lg_ip> lgs;
   std::map<std::string, eh::device::denon_ip> denons;
@@ -100,7 +102,7 @@ int main()
                   {
                     auto iterator = lgs.emplace
                       (name, eh::device::lg_ip{io_service, hostname, pass}).first;
-                    luabind::object lg_obj(L, eh::devices::lua::tv(iterator->second));
+                    luabind::object lg_obj(L, eh::devices::lua::device(iterator->second));
                     iterator->second.watch(std::bind(&::print, L, lg_obj, std::placeholders::_1, std::placeholders::_2));
                     return lg_obj;
                   }))
@@ -110,7 +112,7 @@ int main()
                   {
                     auto iterator = denons.emplace
                       (name, eh::device::denon_ip{io_service, hostname}).first;
-                    luabind::object denon_obj(L, eh::devices::lua::avr(iterator->second));
+                    luabind::object denon_obj(L, eh::devices::lua::device(iterator->second));
                     iterator->second.watch(std::bind(&::print, L, denon_obj, std::placeholders::_1, std::placeholders::_2));
                     return denon_obj;
                   }))
@@ -121,7 +123,7 @@ int main()
                   {
                     auto iterator = harmony_devices.emplace
                       (name, eh::device::harmony_device{io_service, hostname, device, email, password}).first;
-                    luabind::object harmony_obj(L, eh::devices::lua::tv(iterator->second));
+                    luabind::object harmony_obj(L, eh::devices::lua::device(iterator->second));
                     iterator->second.watch(std::bind(&::print, L, harmony_obj, std::placeholders::_1, std::placeholders::_2));
                     return harmony_obj;
                   }))
@@ -131,7 +133,7 @@ int main()
                   {
                     auto iterator = roku_ips.emplace
                       (name, eh::device::roku_ip{io_service, listen_ip, port}).first;
-                    luabind::object roku_obj(L, eh::devices::lua::tv(iterator->second));
+                    luabind::object roku_obj(L, eh::devices::lua::input(iterator->second));
                     iterator->second.watch(std::bind(&::print, L, roku_obj, std::placeholders::_1, std::placeholders::_2));
                     return roku_obj;
                   }))
@@ -140,6 +142,7 @@ int main()
   if(luaL_loadfile(L, "lua/setup.lua"))
   {
     std::cout << "Error loading lua setup.lua" << std::endl;
+    std::cout << "Error: " << lua_tostring(L, -1) << std::endl;
     return -1;
   }
 

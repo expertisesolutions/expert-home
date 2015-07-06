@@ -53,6 +53,7 @@ struct harmony_device
     , hub_socket(service), hub_hostname(hub_hostname), device(device)
     , email(email), password(password)
   {
+    std::cout << "constructor" << std::endl;
     ssl_state_->ssl_context.set_default_verify_paths();
 
     boost::asio::ip::tcp::resolver resolver(ssl_state_->auth_socket.next_layer().get_io_service());
@@ -76,6 +77,8 @@ struct harmony_device
 
   void watch(std::function<void(std::string, std::vector<argument_variant>)> callback)
   {
+    std::cout << "watch" << std::endl;
+
     // if(!socket.is_open()) socket.open(boost::asio::ip::tcp::v4());
     ssl_state_->auth_socket.lowest_layer().connect(auth_endpoint);
     ssl_state_->auth_socket.lowest_layer().set_option(boost::asio::ip::tcp::no_delay(true));
@@ -175,124 +178,156 @@ struct harmony_device
     return tmp.append((3 - val.size() % 3) % 3, '=');
   }
   
-  void change_input(std::string const& input)
+  void send_command(std::string const& command, std::vector<argument_variant> const& args)
   {
     namespace x3 = boost::spirit::x3;
     namespace fusion = boost::fusion;
-    
-    auto cmd_grammar_def =
-      x3::lit("{\"id\":\"expert-home\",\"cmd\":\"")
-      >> +x3::char_ // cmd action
-      >> x3::lit("\",\"token\":\"")
-      >> +x3::char_ // auth token
-      >> x3::lit("\",\"params\":{\"action\":\"{\\\"comamnd\\\":\\\"")
-      >> +x3::char_ // cmd name
-      >> x3::lit("\\\",\\\"type\\\":\\\"IRCommand\\\",\\\"deviceId\\\":\\\"")
-      >> +x3::char_ // deviceId
-      >> x3::lit("\\\"}\",\"status\":\"")
-      >> +x3::char_ // status (release, press?)
-      >> x3::lit("\",\"timestamp\":39067}}")
+
+    std::string command_buffer =
+      "<iq type=\"get\" id=\""
+      "12345678-1234-5678-1234-123456789012-1"
+      "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?"
+      "holdAction\">action={\"type\"::\"IRCommand\",\"deviceId\"::\""
+      + device +
+      "\",\"command\"::\""
+      + command +
+      "\"}:status=press</oa></iq>"
       ;
 
-    std::string token = encode64("2da85ac6-2999-4019-8a60-a620910f64d3\0");
-    
-    boost::fusion::vector5<const char*, std::string, const char*, std::string, const char*>
-      attr("vnd.logitech.harmony\\/vnd.logitech.harmony.engine?holdAction"
-           , token, "PowerOff", device, "release");
-    std::vector<char> request;
-    if(x3::generate(std::back_insert_iterator<std::vector<char>>(request)
-                    , cmd_grammar_def
-                    , attr))
-      {
-        auto message =
-          x3::lit("POST / HTTP/1.1\r\n"
-                  "Content-Type: application/json\r\n"
-                  "charset: utf-8\r\n"
-                  "Accept: application/json\r\n"
-                  "Content-Length: ")
-          >> x3::int_
-          >> x3::lit("\r\n"
-                     "Origin: http://sl.dhg.myharmony.com\r\n"
-                     "\r\n")
-          >> +x3::char_
-          ;
-        std::vector<char> final_request;
-        if(x3::generate(std::back_insert_iterator<std::vector<char>>(final_request)
-                        , message
-                        , fusion::vector2<int, std::vector<char>const&>(request.size(), request)))
-        {
-          std::cout << "connect" << std::endl;
-          std::cout << "connected" << std::endl;
+    std::cout << "sending command" << std::endl;
 
-          const char final_request[] =
-            "GET /?domain=svcs.myharmony.com&hubId=6764415 HTTP/1.1\r\n"
-            "Connection: Upgrade\r\n"
-            "Host: 192.168.20.118:8088\r\n"
-            "Sec-WebSocket-Key: EZk/CC77fjnnX/FrURBsMA==\n"
-            "Sec-WebSocket-Version: 13\r\n"
-            "Upgrade: websocket\r\n"
-            "\r\n"
-            ;
+    hub_socket.open(boost::asio::ip::tcp::v4());
+    hub_socket.connect(hub_endpoint);
+    hub_socket.set_option(boost::asio::ip::tcp::no_delay(true));
+    
+    boost::system::error_code ec;
+    boost::asio::write(hub_socket, boost::asio::const_buffers_1(&command_buffer[0], command_buffer.size()), ec);
+
+    assert(!ec);
+
+    std::array<char, 4096> buffer;
+    std::size_t size =
+      hub_socket.read_some(boost::asio::mutable_buffers_1(&buffer[0], buffer.size()));
+
+    std::cout << "read ";
+    std::copy(buffer.begin(), buffer.begin() + size, std::ostream_iterator<char>(std::cout));
+    std::cout << std::endl;
+
+    hub_socket.close();
+    
+    // auto cmd_grammar_def =
+    //   x3::lit("{\"id\":\"expert-home\",\"cmd\":\"")
+    //   >> +x3::char_ // cmd action
+    //   >> x3::lit("\",\"token\":\"")
+    //   >> +x3::char_ // auth token
+    //   >> x3::lit("\",\"params\":{\"action\":\"{\\\"comamnd\\\":\\\"")
+    //   >> +x3::char_ // cmd name
+    //   >> x3::lit("\\\",\\\"type\\\":\\\"IRCommand\\\",\\\"deviceId\\\":\\\"")
+    //   >> +x3::char_ // deviceId
+    //   >> x3::lit("\\\"}\",\"status\":\"")
+    //   >> +x3::char_ // status (release, press?)
+    //   >> x3::lit("\",\"timestamp\":39067}}")
+    //   ;
+
+    // std::string token = encode64("2da85ac6-2999-4019-8a60-a620910f64d3\0");
+    
+    // boost::fusion::vector5<const char*, std::string, const char*, std::string, const char*>
+    //   attr("vnd.logitech.harmony\\/vnd.logitech.harmony.engine?holdAction"
+    //        , token, "PowerOff", device, "release");
+    // std::vector<char> request;
+    // if(x3::generate(std::back_insert_iterator<std::vector<char>>(request)
+    //                 , cmd_grammar_def
+    //                 , attr))
+    //   {
+    //     auto message =
+    //       x3::lit("POST / HTTP/1.1\r\n"
+    //               "Content-Type: application/json\r\n"
+    //               "charset: utf-8\r\n"
+    //               "Accept: application/json\r\n"
+    //               "Content-Length: ")
+    //       >> x3::int_
+    //       >> x3::lit("\r\n"
+    //                  "Origin: http://sl.dhg.myharmony.com\r\n"
+    //                  "\r\n")
+    //       >> +x3::char_
+    //       ;
+    //     std::vector<char> final_request;
+    //     if(x3::generate(std::back_insert_iterator<std::vector<char>>(final_request)
+    //                     , message
+    //                     , fusion::vector2<int, std::vector<char>const&>(request.size(), request)))
+    //     {
+    //       std::cout << "connect" << std::endl;
+    //       std::cout << "connected" << std::endl;
+
+    //       const char final_request[] =
+    //         "GET /?domain=svcs.myharmony.com&hubId=6764415 HTTP/1.1\r\n"
+    //         "Connection: Upgrade\r\n"
+    //         "Host: 192.168.20.118:8088\r\n"
+    //         "Sec-WebSocket-Key: EZk/CC77fjnnX/FrURBsMA==\n"
+    //         "Sec-WebSocket-Version: 13\r\n"
+    //         "Upgrade: websocket\r\n"
+    //         "\r\n"
+    //         ;
           
-          boost::system::error_code ec;
-          boost::asio::write(hub_socket, boost::asio::const_buffers_1(&final_request[0], sizeof(final_request)-1), ec);
-          std::cout << "written" << std::endl;
+    //       boost::system::error_code ec;
+    //       boost::asio::write(hub_socket, boost::asio::const_buffers_1(&final_request[0], sizeof(final_request)-1), ec);
+    //       std::cout << "written" << std::endl;
 
-          // std::cout << "generated ";
-          // std::copy(final_request.begin(), final_request.end(), std::ostream_iterator<char>(std::cout));
-          // std::endl(std::cout);
+    //       // std::cout << "generated ";
+    //       // std::copy(final_request.begin(), final_request.end(), std::ostream_iterator<char>(std::cout));
+    //       // std::endl(std::cout);
 
-          std::cout << "going to read" << std::endl;
-          // std::vector<char> buffer(4096);
-          offset = 0;
-          boost::asio::async_read(hub_socket, boost::asio::mutable_buffers_1(&buffer[0], buffer.size())
-                                  , [this] (boost::system::error_code const& ec, std::size_t size)
-                                  {
-                                    std::cout << "async read ("<< offset << ',' << size-offset << ")" << std::endl;;
-                                    std::copy(buffer.begin() + offset, buffer.begin() + size
-                                              , std::ostream_iterator<char>(std::cout));
-                                    std::endl(std::cout);
-                                    offset = size;
-                                    return false;
-                                  }
-                                  , [] (boost::system::error_code const&, std::size_t) {});
-        }
-      }
-    else
-      {
-        std::cout << "fail generated" << std::endl;
-      }
+    //       std::cout << "going to read" << std::endl;
+    //       // std::vector<char> buffer(4096);
+    //       offset = 0;
+    //       boost::asio::async_read(hub_socket, boost::asio::mutable_buffers_1(&buffer[0], buffer.size())
+    //                               , [this] (boost::system::error_code const& ec, std::size_t size)
+    //                               {
+    //                                 std::cout << "async read ("<< offset << ',' << size-offset << ")" << std::endl;;
+    //                                 std::copy(buffer.begin() + offset, buffer.begin() + size
+    //                                           , std::ostream_iterator<char>(std::cout));
+    //                                 std::endl(std::cout);
+    //                                 offset = size;
+    //                                 return false;
+    //                               }
+    //                               , [] (boost::system::error_code const&, std::size_t) {});
+    //     }
+    //   }
+    // else
+    //   {
+    //     std::cout << "fail generated" << std::endl;
+    //   }
     
-    char cmdcmd0[] = "connect.ping";
-    char cmdcmd1[] = "connect.rf?info";
-    char cmdcmd2[] = "connect.statedigest?get";
-    char cmdcmd3[] = "vnd.logitech.connect/vnd.logitech.deviceinfo?get";
-    char cmdcmd4[] = "vnd.logitech.harmony/vnd.logitech.harmony.engine?config";
+    // char cmdcmd0[] = "connect.ping";
+    // char cmdcmd1[] = "connect.rf?info";
+    // char cmdcmd2[] = "connect.statedigest?get";
+    // char cmdcmd3[] = "vnd.logitech.connect/vnd.logitech.deviceinfo?get";
+    // char cmdcmd4[] = "vnd.logitech.harmony/vnd.logitech.harmony.engine?config";
 
-    //{"hbus":{"id":"616003bc72600062#kltelgt#sm-g900l-296-5","cmd":"vnd.logitech.harmony\/vnd.logitech.harmony.engine?holdAction","token":"WFQIvYIg1rj5l19n0dXfnQ;1434341052;lNB_4xG0qjhH8qnQsVKfd38-RzI","params":{"action":"{\"command\":\"PowerToggle\",\"type\":\"IRCommand\",\"deviceId\":\"27568418\"}","status":"release","timestamp":39067}}}
+    // //{"hbus":{"id":"616003bc72600062#kltelgt#sm-g900l-296-5","cmd":"vnd.logitech.harmony\/vnd.logitech.harmony.engine?holdAction","token":"WFQIvYIg1rj5l19n0dXfnQ;1434341052;lNB_4xG0qjhH8qnQsVKfd38-RzI","params":{"action":"{\"command\":\"PowerToggle\",\"type\":\"IRCommand\",\"deviceId\":\"27568418\"}","status":"release","timestamp":39067}}}
     
-    char cmd2[] =
-      "POST / HTTP/1.1\r\n"
-      "Content-Type: application/json\r\n"
-      "charset: utf-8\r\n"
-      "Accept: application/json\r\n"
-      "Content-Length: 33\r\n"
-      "Origin: http//:localhost.nebula.myharmony.com\r\n"
-      "\r\n"
-      "{\"id\":\"124\",\"cmd\":\"connect.ping\"}"
-      ;
+    // char cmd2[] =
+    //   "POST / HTTP/1.1\r\n"
+    //   "Content-Type: application/json\r\n"
+    //   "charset: utf-8\r\n"
+    //   "Accept: application/json\r\n"
+    //   "Content-Length: 33\r\n"
+    //   "Origin: http//:localhost.nebula.myharmony.com\r\n"
+    //   "\r\n"
+    //   "{\"id\":\"124\",\"cmd\":\"connect.ping\"}"
+    //   ;
 
     
-    char cmd1[] =
-      "POST / HTTP/1.1\r\n"
-      "Content-Type: application/json\r\n"
-      "charset: utf-8\r\n"
-      "Origin: http://sl.dhg.myharmony.com\r\n"
-      "Accept: application/json, text/javascript, */*; q=0.01\r\n"
-      "Content-Length: 340\r\n"
-      "\r\n"
-      "{\"hbus\":{\"id\":\"expert-home\",\"cmd\":\"vnd.logitech.harmony/vnd.logitech.harmony.engine?holdAction\",\"token\":\"zzG0OE0CFct5gXwapANmj3z/y5pbHKLDNhtu0gCzX2CP+m8X380cQwSXou7IhkD4\",\"params\":{\"action\":\"{\\\"command\\\":\\\"PowerToggle\\\",\\\"type\\\":\\\"IRCommand\\\",\\\"deviceId\\\":\\\"27568418\\\"}\",\"status\":\"release\",\"timestamp\":39067}}}"
-      ;
+    // char cmd1[] =
+    //   "POST / HTTP/1.1\r\n"
+    //   "Content-Type: application/json\r\n"
+    //   "charset: utf-8\r\n"
+    //   "Origin: http://sl.dhg.myharmony.com\r\n"
+    //   "Accept: application/json, text/javascript, */*; q=0.01\r\n"
+    //   "Content-Length: 340\r\n"
+    //   "\r\n"
+    //   "{\"hbus\":{\"id\":\"expert-home\",\"cmd\":\"vnd.logitech.harmony/vnd.logitech.harmony.engine?holdAction\",\"token\":\"zzG0OE0CFct5gXwapANmj3z/y5pbHKLDNhtu0gCzX2CP+m8X380cQwSXou7IhkD4\",\"params\":{\"action\":\"{\\\"command\\\":\\\"PowerToggle\\\",\\\"type\\\":\\\"IRCommand\\\",\\\"deviceId\\\":\\\"27568418\\\"}\",\"status\":\"release\",\"timestamp\":39067}}}"
+    //   ;
     
   }
 
@@ -448,30 +483,31 @@ struct harmony_device
 
             std::cout << "send command" << std::endl;
 
-            std::string command =
-              "<iq type=\"get\" id=\""
-              "12345678-1234-5678-1234-123456789012-1"
-              "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?"
-              "holdAction\">action={\"type\"::\"IRCommand\",\"deviceId\"::\""
-              + device +
-              "\",\"command\"::\""
-              "PowerToggle"
-              "\"}:status=press</oa></iq>"
-              ;
+            // std::string command =
+            //   "<iq type=\"get\" id=\""
+            //   "12345678-1234-5678-1234-123456789012-1"
+            //   "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?"
+            //   "holdAction\">action={\"type\"::\"IRCommand\",\"deviceId\"::\""
+            //   + device +
+            //   "\",\"command\"::\""
+            //   + command +
+            //   "\"}:status=press</oa></iq>"
+            //   ;
 
-            std::cout << "sending command" << std::endl;
+            // std::cout << "sending command" << std::endl;
             
-            boost::asio::write(hub_socket, boost::asio::const_buffers_1(&command[0], command.size()), ec);
+            // boost::asio::write(hub_socket, boost::asio::const_buffers_1(&command[0], command.size()), ec);
 
-            assert(!ec);
+            // assert(!ec);
             
-            size = hub_socket.read_some(boost::asio::mutable_buffers_1(&buffer[0], buffer.size()));
+            // size = hub_socket.read_some(boost::asio::mutable_buffers_1(&buffer[0], buffer.size()));
 
-            std::cout << "read ";
-            std::copy(buffer.begin(), buffer.begin() + size, std::ostream_iterator<char>(std::cout));
-            std::cout << std::endl;
+            // std::cout << "read ";
+            // std::copy(buffer.begin(), buffer.begin() + size, std::ostream_iterator<char>(std::cout));
+            // std::cout << std::endl;
             //   + encode64()
             //   ;
+            hub_socket.close();
           }
       }
       else

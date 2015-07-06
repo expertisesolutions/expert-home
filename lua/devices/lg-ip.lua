@@ -76,3 +76,140 @@
 74 ->
 75 -> 
 --]]
+
+--[[
+$menus = LgRemote::OrderedHash[
+  :status_bar, 35,
+  :quick_menu, 69,
+  :home_menu, 67,
+  :premium_menu, 89,
+  :installation_menu, 207,
+  :factory_advanced_menu1, 251,
+  :factory_advanced_menu2, 255,
+]
+
+$power_controls = LgRemote::OrderedHash[
+  :power_off, 8,
+  :sleep_timer, 14,
+]
+
+$navigation = LgRemote::OrderedHash[
+  :left, 7,
+  :right, 6,
+  :up, 64,
+  :down, 65,
+  :select, 68,
+  :back, 40,
+  :exit, 91,
+  :red, 114,
+  :green, 113,
+  :yellow, 99,
+  :blue, 97,
+]
+
+$keypad = LgRemote::OrderedHash[
+  :"0", 16,
+  :"1", 17,
+  :"2", 18,
+  :"3", 19,
+  :"4", 20,
+  :"5", 21,
+  :"6", 22,
+  :"7", 23,
+  :"8", 24,
+  :"9", 25,
+  :underscore, 76,
+]
+
+$playback_controls = LgRemote::OrderedHash[
+  :play, 176,
+  :pause, 186,
+  :fast_forward, 142,
+  :rewind, 143,
+  :stop, 177,
+  :record, 189,
+]
+
+$input_controls = LgRemote::OrderedHash[
+  :tv_radio, 15,
+  :simplink, 126,
+  :input, 11,
+  :component_rgb_hdmi, 152,
+  :component, 191,
+  :rgb, 213,
+  :hdmi, 198,
+  :hdmi1, 206,
+  :hdmi2, 204,
+  :hdmi3, 233,
+  :hdmi4, 218,
+  :av1, 90,
+  :av2, 208,
+  :av3, 209,
+  :usb, 124,
+  :slideshow_usb1, 238,
+  :slideshow_usb2, 168,
+]
+
+$tv_controls = LgRemote::OrderedHash[
+  :channel_up, 0,
+  :channel_down, 1,
+  :channel_back, 26,
+  :favorites, 30,
+  :teletext, 32,
+  :t_opt, 33,
+  :channel_list, 83,
+  :greyed_out_add_button?, 85,
+  :guide, 169,
+  :info, 170,
+  :live_tv, 158,
+]
+
+$picture_controls = LgRemote::OrderedHash[
+  :av_mode, 48,
+  :picture_mode, 77,
+  :ratio, 121,
+  :ratio_4_3, 118,
+  :ratio_16_9, 119,
+  :energy_saving, 149,
+  :cinema_zoom, 175,
+  :"3d", 220,
+  :factory_picture_check, 252,
+]
+
+$audio_controls = LgRemote::OrderedHash[
+  :volume_up, 2,
+  :volume_down, 3,
+  :mute, 9,
+  :audio_language, 10,
+  :sound_mode, 82,
+  :factory_sound_check, 253,
+  :subtitle_language, 57,
+  :audio_description, 145,
+                                       ]
+--]]
+
+local device = {}
+
+device.raw_device = avail_devices.lg('lg', 'tv', 'SMBDJA')
+
+function device.poweroff ()
+   device.raw_device:send_command('HandleKeyInput', {'8'})
+end
+function device.channelup ()
+   device.raw_device:send_command('HandleKeyInput', {'0'})
+end
+function device.channeldown ()
+   device.raw_device:send_command('HandleKeyInput', {'1'})
+end
+function device.channelback ()
+   device.raw_device:send_command('HandleKeyInput', {'26'})
+end
+function device.input_hdmi1 ()
+   device.raw_device:send_command('HandleKeyInput', {'206'})
+end
+function device.input_tv ()
+   device.raw_device:send_command('HandleKeyInput', {'15'})
+end
+
+return device
+

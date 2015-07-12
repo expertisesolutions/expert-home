@@ -13,6 +13,7 @@
 #include <expert-home/devices/input/roku-ip.hpp>
 #include <expert-home/devices/lua/device.hpp>
 #include <expert-home/devices/lua/input.hpp>
+#include <expert-home/schedule.hpp>
 
 #include <lua.hpp>
 
@@ -54,7 +55,8 @@ struct lua_push_visitor
   }
 };
 
-void print(lua_State* L, luabind::object device, std::string command, std::vector<eh::argument_variant> args)
+void callback_function(lua_State* L, luabind::object device, std::string command, std::vector<eh::argument_variant> args
+                       , luabind::object function)
 {
   std::cout << "command " << command << " with " << args.size() << " arguments ";
   for(auto const& arg : args)
@@ -63,7 +65,7 @@ void print(lua_State* L, luabind::object device, std::string command, std::vecto
   }
   std::endl(std::cout);
 
-  lua_getglobal(L, "device_handler");
+  function.push(L);
   device.push(L);
   lua_pushstring(L, command.c_str());
   for(auto const& arg : args)
@@ -71,11 +73,12 @@ void print(lua_State* L, luabind::object device, std::string command, std::vecto
     boost::apply_visitor(lua_push_visitor{L}, arg);
   }
   if(lua_pcall(L, 2 + args.size(), 0, 0))
-    {
-      std::cout << "failed calling device handler" << std::endl;
+  {
+    std::cout << "failed calling device handler" << std::endl;
 
-      std::cout << "Error: " << lua_tostring(L, -1) << std::endl;
-    }
+    std::cout << "Error: " << lua_tostring(L, -1) << std::endl;
+    lua_pop(L, -1);
+  }
 }
 
 int main()
@@ -88,6 +91,7 @@ int main()
   luabind::open(L);
   eh::devices::lua::register_device(L);
   eh::devices::lua::register_input(L);
+  eh::register_schedule(io_service, L);
 
   std::map<std::string, eh::device::lg_ip> lgs;
   std::map<std::string, eh::device::denon_ip> denons;
@@ -97,44 +101,51 @@ int main()
   luabind::module(L, "avail_devices")
   [
      luabind::def("lg",
-                  luabind::tag_function<luabind::object(std::string, std::string, std::string)>
-                  ([&] (std::string name, std::string hostname, std::string pass) -> luabind::object
+                  luabind::tag_function<luabind::object(std::string, std::string, std::string, luabind::object)>
+                  ([&] (std::string name, std::string hostname, std::string pass
+                        , luabind::object function) -> luabind::object
                   {
                     auto iterator = lgs.emplace
                       (name, eh::device::lg_ip{io_service, hostname, pass}).first;
                     luabind::object lg_obj(L, eh::devices::lua::device(iterator->second));
-                    iterator->second.watch(std::bind(&::print, L, lg_obj, std::placeholders::_1, std::placeholders::_2));
+                    iterator->second.watch(std::bind(&::callback_function, L, lg_obj, std::placeholders::_1, std::placeholders::_2
+                                                     , function));
                     return lg_obj;
                   }))
    , luabind::def("denon",
-                  luabind::tag_function<luabind::object(std::string, std::string)>
-                  ([&] (std::string name, std::string hostname) -> luabind::object
+                  luabind::tag_function<luabind::object(std::string, std::string, luabind::object)>
+                  ([&] (std::string name, std::string hostname, luabind::object function) -> luabind::object
                   {
                     auto iterator = denons.emplace
                       (name, eh::device::denon_ip{io_service, hostname}).first;
                     luabind::object denon_obj(L, eh::devices::lua::device(iterator->second));
-                    iterator->second.watch(std::bind(&::print, L, denon_obj, std::placeholders::_1, std::placeholders::_2));
+                    iterator->second.watch(std::bind(&::callback_function, L, denon_obj, std::placeholders::_1
+                                                     , std::placeholders::_2, function));
                     return denon_obj;
                   }))
    , luabind::def("lg_power_on",
-                  luabind::tag_function<luabind::object(std::string, std::string, std::string, std::string, std::string)>
+                  luabind::tag_function<luabind::object(std::string, std::string, std::string, std::string, std::string
+                                                        , luabind::object)>
                   ([&] (std::string name, std::string hostname, std::string device
-                        , std::string email, std::string password) -> luabind::object
+                        , std::string email, std::string password, luabind::object function) -> luabind::object
                   {
                     auto iterator = harmony_devices.emplace
                       (name, eh::device::harmony_device{io_service, hostname, device, email, password}).first;
                     luabind::object harmony_obj(L, eh::devices::lua::device(iterator->second));
-                    iterator->second.watch(std::bind(&::print, L, harmony_obj, std::placeholders::_1, std::placeholders::_2));
+                    iterator->second.watch(std::bind(&::callback_function, L, harmony_obj, std::placeholders::_1
+                                                     , std::placeholders::_2, function));
                     return harmony_obj;
                   }))
    , luabind::def("roku_ip",
-                  luabind::tag_function<luabind::object(std::string, std::string, unsigned short)>
-                  ([&] (std::string name, std::string listen_ip, unsigned short port) -> luabind::object
+                  luabind::tag_function<luabind::object(std::string, std::string, unsigned short, luabind::object)>
+                  ([&] (std::string name, std::string listen_ip, unsigned short port
+                        , luabind::object function) -> luabind::object
                   {
                     auto iterator = roku_ips.emplace
                       (name, eh::device::roku_ip{io_service, listen_ip, port}).first;
                     luabind::object roku_obj(L, eh::devices::lua::input(iterator->second));
-                    iterator->second.watch(std::bind(&::print, L, roku_obj, std::placeholders::_1, std::placeholders::_2));
+                    iterator->second.watch(std::bind(&::callback_function, L, roku_obj, std::placeholders::_1
+                                                     , std::placeholders::_2, function));
                     return roku_obj;
                   }))
   ];

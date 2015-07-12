@@ -185,12 +185,40 @@ $audio_controls = LgRemote::OrderedHash[
   :factory_sound_check, 253,
   :subtitle_language, 57,
   :audio_description, 145,
-                                       ]
 --]]
 
-local device = {}
+local device =
+   {
+      on_poweron_c = nil,
+   }
 
-device.raw_device = avail_devices.lg('lg', 'tv', 'SMBDJA')
+function device.on_poweron(f)
+   if(type(f) == 'function') then
+      print('lg-ip poweron callback set for ', f)
+      device.on_poweron_c = f
+      print('lg-ip poweron callback set for ', device.on_poweron_c)
+   else
+      error('on_poweron must receive a function')
+   end
+end
+
+function device.check_poweron()
+   print('CHECK lg-ip poweron callback set for ', device.on_poweron_c)
+end
+
+function device.callback (d, command)
+   print('real callback')
+   if(command == 'poweron') then
+      print('power command, lets see if we have callback', device.on_poweron_c)
+      device.check_poweron()
+      if(device.on_poweron_c) then
+         print ('calling callback poweron')
+         device.on_poweron_c ()
+      end
+   end
+end
+
+device.raw_device = avail_devices.lg('lg', 'tv', 'SMBDJA', device.callback)
 
 function device.poweroff ()
    device.raw_device:send_command('HandleKeyInput', {'8'})
@@ -210,6 +238,24 @@ end
 function device.input_tv ()
    device.raw_device:send_command('HandleKeyInput', {'15'})
 end
+function device.play()
+   device.raw_device:send_command('HandleKeyInput', {'176'})
+end
+function device.pause()
+   device.raw_device:send_command('HandleKeyInput', {'186'})
+end   
+function device.fastforward()
+   device.raw_device:send_command('HandleKeyInput', {'142'})
+end   
+function device.rewind()
+   device.raw_device:send_command('HandleKeyInput', {'143'})
+end   
+function device.stop()
+   device.raw_device:send_command('HandleKeyInput', {'177'})
+end   
+function device.record()
+   device.raw_device:send_command('HandleKeyInput', {'189'})
+end   
 
 return device
 

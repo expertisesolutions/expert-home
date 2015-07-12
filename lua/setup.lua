@@ -15,12 +15,15 @@ devices =
    lg = require('lua/devices/lg'),
    roku =
       {
-         device =avail_devices.roku_ip('roku', '192.168.20.1', 8060),
+         device = avail_devices.roku_ip('roku', '192.168.33.51', 8060, device_handler),
          
       }
 }
 
-
+activities =
+{
+      
+}
 
 print ('Hello World')
 function device_handler(device, command, arg1, arg2, arg3, arg4)
@@ -33,29 +36,51 @@ function device_handler(device, command, arg1, arg2, arg3, arg4)
 -- --      devices.lg_power_on:change_input('1')
 --    end
 
-   --if(command == 'Home') then
+   if(command == 'launch' and arg1 == 11) then
+      devices.lg:poweron()
+      devices.lg:input_tv()
+      devices.avr:poweron()
       --print ('TV activity')
       --if(not devices.lg.is_poweron) then
-         --devices.lg:poweron()
+         
       --else
          --devices.lg:poweroff()
          --devices.lg:input_tv()
          
       --end
+   end
    --else
 
-   --[[
-   if(command == 'Left') then
-      devices.lg:channeldown()
-   elseif(command == 'Right') then
+   if(command == 'Up') then
       devices.lg:channelup()
+   elseif(command == 'Down') then
+      devices.lg:channeldown()
+    --[[
    elseif(command == 'Up') then
       devices.avr:poweroff()
       --devices.lg.lg_ip.raw_device:send_command('15', {})
    elseif(command == 'Down') then
       devices.avr:poweron()
       --devices.lg.lg_ip.raw_device:send_command('15', {})
-   end
    --]]
+   end
 end
+
+
+schedule(5, 0, 0,
+         function()
+            print ('powering on to record')
+            
+            devices.lg.lg_ip.on_poweron(function ()
+                  devices.lg.input_tv()
+                  print ('scheduling record')
+                  schedule(1, 0, 0,
+                           function ()
+                              print ('calling record')
+                              devices.lg.record()
+                  end)
+            end)
+            devices.lg.poweron()
+end)
+
 

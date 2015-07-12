@@ -105,14 +105,14 @@ void asynchronous_ssdp(boost::asio::io_service* service, std::string ssdp_respon
      // }
      , [=] (boost::system::error_code const& ec, std::size_t size)
      {
-       // std::cout << "received ssdp packet" << std::endl;
+       std::cout << "received ssdp packet" << std::endl;
        // std::copy(ssdp_task->buffer.begin(), ssdp_task->buffer.begin() + size, std::ostream_iterator<char>(std::cout));
        // std::endl(std::cout);
 
        if(x3::parse(ssdp_task->buffer.begin(), ssdp_task->buffer.begin() + size
                     , x3::lit("M-SEARCH * HTTP/1.1\r\n")))
        {
-         // std::cout << "sending response" << std::endl;
+         std::cout << "sending response" << std::endl;
          ssdp_socket->send_to
            (boost::asio::const_buffers_1(&ssdp_response[0], ssdp_response.size())
             , ssdp_task->remote_endpoint);
@@ -163,11 +163,12 @@ void asynchronous_http_read_handler(boost::system::error_code const& ec, std::si
     {
       if(fusion::at_c<1>(attr) == "/")
       {
-        // std::cout << "Should send DLNA profile" << std::endl;
+        std::cout << "Send DLNA profile" << std::endl;
         boost::asio::write(http_task->socket, boost::asio::const_buffers_1(&answer_dlna[0], sizeof(answer_dlna)-1));
       }
       else if(fusion::at_c<1>(attr) == "/query/apps")
       {
+        std::cout << "Send Roku Apps" << std::endl;
         const char apps[] =
           "<apps>\r\n"
           "<app id=\"11\">Roku Channel Store</app>\r\n"
@@ -185,26 +186,37 @@ void asynchronous_http_read_handler(boost::system::error_code const& ec, std::si
       else
       {
         std::string key;
+        int app;
         if(x3::parse(fusion::at_c<1>(attr).begin(), fusion::at_c<1>(attr).end()
                      , x3::lit("/keypress/") >> +x3::char_
                      , key))
         {
           std::cout << "Pressed " << key << std::endl;
-        
-          asynchronous_http_read(http_task);
-    
-          const char response[] =
-            "HTTP/1.1 200 OK\r\n"
-            "Server: Roku UPnP/1.0 MiniUPnPd/1.4\r\n"
-            "Content-Length: 0\r\n"
-            "connection: Close\r\n"
-            "\r\n"
-            ;
-    
-          boost::asio::write(http_task->socket, boost::asio::const_buffers_1(&response[0], sizeof(response)-1));
-
           http_task->callback(key, std::vector<argument_variant>{});
         }
+        else if(x3::parse(fusion::at_c<1>(attr).begin(), fusion::at_c<1>(attr).end()
+                          , x3::lit("/launch/") >> x3::int_
+                          , app))
+        {
+          http_task->callback("launch", std::vector<argument_variant>{app});
+        }
+        else
+        {
+          std::cout << "Failed parsing url location" << std::endl;
+        }
+        asynchronous_http_read(http_task);
+    
+        const char response[] =
+          "HTTP/1.1 200 OK\r\n"
+          "Server: Roku UPnP/1.0 MiniUPnPd/1.4\r\n"
+          "Content-Length: 0\r\n"
+          "connection: Close\r\n"
+          "\r\n"
+          ;
+    
+        boost::asio::write(http_task->socket, boost::asio::const_buffers_1(&response[0], sizeof(response)-1));
+
+        http_task->callback(key, std::vector<argument_variant>{});
       }
     }
     else

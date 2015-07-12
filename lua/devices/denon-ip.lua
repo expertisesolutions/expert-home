@@ -4,10 +4,15 @@
 --          http://www.boost.org/LICENSE_1_0.txt)
 
 local device = {
-   raw_device = avail_devices.denon('avr', 'denon'),
    is_masteron = false,
    is_secondon = false,
 }
+
+function device.callback()
+   print ('denon device callback')
+end
+
+device.raw_device = avail_devices.denon('avr', 'denon', device.callback)
 
 function device.poweroff()
    device.raw_device:send_command('ZM', {'OFF'})

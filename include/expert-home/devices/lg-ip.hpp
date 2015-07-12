@@ -199,24 +199,6 @@ void accept_connections(boost::asio::ip::tcp::acceptor* acceptor
 }
   
 }  
-    
-struct lg_ip
-{
-  lg_ip(boost::asio::io_service& service, std::string hostname, std::string password)
-    : socket(service)
-    , acceptor(service, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 8080))
-    , hostname(hostname), password(password)
-  {
-    boost::asio::ip::tcp::resolver resolver(socket.get_io_service());
-    {
-      boost::asio::ip::tcp::resolver::iterator
-        iterator = resolver.resolve(boost::asio::ip::tcp::resolver::query{hostname, "8080"});
-      if(iterator != boost::asio::ip::tcp::resolver::iterator())
-        endpoint = *iterator;
-      else
-        throw std::runtime_error("");
-    }
-  }
 
   /* NETFLIX
 
@@ -246,63 +228,102 @@ Connection: Keep-Alive
 
   // HDMI1 <?xml version="1.0" encoding="utf-8"?><event><session>502017796</session><name>ChannelChanged</name><chname></chname><physicalNum>255</physicalNum><sourceIndex>8</sourceIndex><minor>65520</minor><major>65520</major><chtype></chtype></event>
 
-  void send_command(std::string const& command, std::vector<argument_variant> const& args)
+    
+struct lg_ip
+{
+  lg_ip(boost::asio::io_service& service, std::string hostname, std::string password)
+    : outstanding_operation(false), socket(service)
+    , acceptor(service, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 8080))
+    , hostname(hostname), password(password)
   {
-    std::cout << "LG command " << command << " args size " << args.size() << std::endl;
-    queue_command(command, args);
+    boost::asio::ip::tcp::resolver resolver(socket.get_io_service());
+    {
+      boost::asio::ip::tcp::resolver::iterator
+        iterator = resolver.resolve(boost::asio::ip::tcp::resolver::query{hostname, "8080"});
+      if(iterator != boost::asio::ip::tcp::resolver::iterator())
+        endpoint = *iterator;
+      else
+        throw std::runtime_error("");
+    }
   }
 
-  void command_connect_handler(boost::system::error_code ec, std::string const command
-                               , std::vector<argument_variant> const& args)
+  struct command
   {
+    std::string command;
+    std::vector<argument_variant> args;
+  };
+  
+  void command_connect_handler(boost::system::error_code ec)
+  {
+    assert(!command_queue.empty());
+    assert(outstanding_operation);
     std::cout << "command_connect_handler" << std::endl;
     if(!ec)
     {
-      std::cout << "connection OK command: " << command << std::endl;
-      std::string body;
-      if(command == "HandleKeyInput" && args.size() == 1)
+      boost::system::error_code ec;
+      command_run(command_queue.front(), ec);
+
+      if(ec)
       {
-        namespace x3 = boost::spirit::x3;
-        namespace fusion = boost::fusion;
-        if(x3::generate(std::back_insert_iterator<std::string>(body)
-                        , x3::omit[x3::lit("<?xml version=\"1.0\" encoding=\"utf-8\"?><command><session>")]
-                        >> x3::int_
-                        >> x3::omit[x3::lit("</session><type>")]
-                        >> +x3::char_
-                        >> x3::omit[x3::lit("</type><value>")]
-                        >> (+x3::char_ | x3::int_)
-                        >> x3::omit[x3::lit("</value></command>")]
-                        , fusion::vector3<int, std::string const&, /*std::string*/eh::argument_variant>
-                        (session, command, /*boost::get<std::string>(*/args[0]/*)*/)))
-        {
-          std::cout << "Generated " << std::endl;
-          std::copy(body.begin(), body.end(), std::ostream_iterator<char>(std::cout));
-          std::cout << std::endl;
-        }
-        else
-          throw std::runtime_error("Failed generation");
+        catastrophe();
+      }
+      else // this should happen only after checking return
+      {
+        std::cout << "Command executed OK" << std::endl;
+        // command_queue.erase(command_queue.begin());
+        // finish_operation();
+        // outstanding_operation = false;
+        // socket.close();
+        return;
+      }
+    }
+    socket.async_connect(endpoint, std::bind(&lg_ip::command_connect_handler, this, std::placeholders::_1));
+  }
+
+  void command_run(command const& c, boost::system::error_code& ec)
+  {
+    std::cout << "connection OK command: " << c.command << std::endl;
+    std::string body;
+    if(c.command == "HandleKeyInput" && c.args.size() == 1)
+    {
+      namespace x3 = boost::spirit::x3;
+      namespace fusion = boost::fusion;
+      if(x3::generate(std::back_insert_iterator<std::string>(body)
+                      , x3::omit[x3::lit("<?xml version=\"1.0\" encoding=\"utf-8\"?><command><session>")]
+                      >> x3::int_
+                      >> x3::omit[x3::lit("</session><type>")]
+                      >> +x3::char_
+                      >> x3::omit[x3::lit("</type><value>")]
+                      >> (+x3::char_ | x3::int_)
+                      >> x3::omit[x3::lit("</value></command>")]
+                      , fusion::vector3<int, std::string const&, /*std::string*/eh::argument_variant>
+                      (session, c.command, /*boost::get<std::string>(*/c.args[0]/*)*/)))
+      {
+        std::cout << "Generated " << std::endl;
+        std::copy(body.begin(), body.end(), std::ostream_iterator<char>(std::cout));
+        std::cout << std::endl;
       }
       else
-        throw std::runtime_error("Unknown command");
-      std::stringstream message;
-      message <<
-        "POST /hdcp/api/dtv_wifirc HTTP/1.1\r\n"
-        "Host: 192.168.33.54:8080\r\n"
-        "Content-Type: application/atom+xml\r\n"
-        "Content-Length: " << body.size() <<
-        "\r\nConnection: Keep-Alive\r\n\r\n" <<
-        body
-        ;
+        throw std::runtime_error("Failed generation");
+    }
+    else
+      throw std::runtime_error("Unknown command");
+    std::stringstream message;
+    message <<
+      "POST /hdcp/api/dtv_wifirc HTTP/1.1\r\n"
+      "Host: 192.168.33.54:8080\r\n"
+      "Content-Type: application/atom+xml\r\n"
+      "Content-Length: " << body.size() <<
+      "\r\nConnection: Close\r\n\r\n" <<
+      body
+      ;
 
-      std::string request = message.str();
-      boost::asio::write(socket, boost::asio::const_buffers_1(&request[0], request.size()), ec);
+    std::string request = message.str();
+    boost::asio::write(socket, boost::asio::const_buffers_1(&request[0], request.size()), ec);
 
-      if(!ec)
-      {
-        std::cout << "Command " << command << " sent succesfully" << std::endl;
-      }
-      else
-        std::cout << "Failed sending command, should try again" << std::endl;
+    if(!ec)
+    {
+      std::cout << "Command " << c.command << " sent succesfully" << std::endl;
 
       boost::asio::async_read(socket, boost::asio::mutable_buffers_1(buffer.begin(), buffer.size())
                               // , [this] (boost::system::error_code const& ec, std::size_t size)
@@ -317,37 +338,31 @@ Connection: Keep-Alive
                                 // return ec || size == 1024 || std::find(buffer.begin(), last, '\r') != last;
                                 if(size)
                                 {
-                                  std::cout << "LG received " << size << std::endl;
-                                  std::copy(buffer.begin(), buffer.begin() + size
-                                            , std::ostream_iterator<char>(std::cout));
-                                  std::cout << std::endl;
-                                  socket.close();
+                                  std::cout << "received " << size << std::endl;
+                                  this->command_response(size);
                                 }
                                 else if(ec)
                                 {
-                                  std::cout << "LG error size " << size << " error " << ec.message() << std::endl;
-                                  if(ec == boost::asio::error::eof)
-                                    socket.close();
+                                  catastrophe();
                                 }
                               }
                               );
-
     }
-    else
-      socket.async_connect(endpoint, std::bind(&lg_ip::command_connect_handler, this, std::placeholders::_1, command, args));
   }
-  
-  void queue_command(std::string const& command, std::vector<argument_variant> const& args)
-  {
-    std::cout << "queue command " << command << std::endl;
 
-    if(!socket.is_open())
+  void send_command(std::string const& c, std::vector<argument_variant> const& args)
+  {
+    std::cout << "queue command " << c << std::endl;
+    command_queue.push_back(command{c, args});
+
+    if(!outstanding_operation)
     {
+      assert(!socket.is_open());
+      std::cout << "Socket not open!" << std::endl;
+      outstanding_operation = true;
       socket.open(boost::asio::ip::tcp::v4());
-      socket.async_connect(endpoint, std::bind(&lg_ip::command_connect_handler, this, std::placeholders::_1, command, args));
+      socket.async_connect(endpoint, std::bind(&lg_ip::command_connect_handler, this, std::placeholders::_1));
     }
-    else
-      command_connect_handler(boost::system::error_code{}, command, args);
   }
 
   void connect_handler(boost::system::error_code ec)
@@ -375,29 +390,33 @@ Connection: Keep-Alive
                          , ec
                          );
 
-      boost::asio::async_read(socket, boost::asio::mutable_buffers_1(buffer.begin(), buffer.size())
-                              // , [this] (boost::system::error_code const& ec, std::size_t size)
-                              // {
-                              //   auto last = buffer.begin() + size;
-                              //   return ec || size == 1024 || std::find(buffer.begin(), last, '\r') != last;
-                              // }
-                              // , boost::bind(&denon_ip::handler, this, _1, _2)
-                              , [this] (boost::system::error_code const& ec, std::size_t size)
-                              {
-                                // auto last = buffer.begin() + size;
-                                // return ec || size == 1024 || std::find(buffer.begin(), last, '\r') != last;
-                                if(size)
+      if(!ec)
+      {
+        boost::asio::async_read(socket, boost::asio::mutable_buffers_1(buffer.begin(), buffer.size())
+                                // , [this] (boost::system::error_code const& ec, std::size_t size)
+                                // {
+                                //   auto last = buffer.begin() + size;
+                                //   return ec || size == 1024 || std::find(buffer.begin(), last, '\r') != last;
+                                // }
+                                // , boost::bind(&denon_ip::handler, this, _1, _2)
+                                , [this] (boost::system::error_code const& ec, std::size_t size)
                                 {
-                                  std::cout << "received " << size << std::endl;
-                                  this->handle(size);
+                                  // auto last = buffer.begin() + size;
+                                  // return ec || size == 1024 || std::find(buffer.begin(), last, '\r') != last;
+                                  if(size)
+                                  {
+                                    std::cout << "received " << size << std::endl;
+                                    this->auth_response_handle(size);
+                                  }
+                                  else if(ec)
+                                  {
+                                    std::cout << "error size " << size << " error " << ec.message() << std::endl;
+                                  }
                                 }
-                                else if(ec)
-                                {
-                                  std::cout << "error size " << size << " error " << ec.message() << std::endl;
-                                }
-                              }
-                              );
-
+                                );
+      }
+      else
+        catastrophe();
     }
     else
       socket.async_connect(endpoint, std::bind(&lg_ip::connect_handler, this, std::placeholders::_1));
@@ -405,16 +424,15 @@ Connection: Keep-Alive
   
   void watch(std::function<void(std::string, std::vector<argument_variant>)> function)
   {
+    outstanding_operation = true;
     socket.async_connect(endpoint, std::bind(&lg_ip::connect_handler, this, std::placeholders::_1));
 
-    // acceptor.open(boost::asio::ip::tcp::v4());
-    // acceptor.bind(boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 8080));
     lg_ip_detail::accept_connections(&acceptor, &callback);
     
     this->callback = std::move(function);
   }
 
-  void handle(std::size_t size)
+  void auth_response_handle(std::size_t size)
   {
     std::cout << "Handle LG" << std::endl;
     namespace x3 = boost::spirit::x3;
@@ -436,34 +454,9 @@ Connection: Keep-Alive
       session = fusion::at_c<2>(attr);
       std::cout << "LG Session " << session << std::endl;
 
-      boost::asio::async_read(socket, boost::asio::mutable_buffers_1(buffer.begin(), buffer.size())
-                              // , [this] (boost::system::error_code const& ec, std::size_t size)
-                              // {
-                              //   auto last = buffer.begin() + size;
-                              //   return ec || size == 1024 || std::find(buffer.begin(), last, '\r') != last;
-                              // }
-                              // , boost::bind(&denon_ip::handler, this, _1, _2)
-                              , [this] (boost::system::error_code const& ec, std::size_t size)
-                              {
-                                // auto last = buffer.begin() + size;
-                                // return ec || size == 1024 || std::find(buffer.begin(), last, '\r') != last;
-                                if(size)
-                                {
-                                  std::cout << "LG received " << size << std::endl;
-                                  std::copy(buffer.begin(), buffer.begin() + size
-                                            , std::ostream_iterator<char>(std::cout));
-                                  std::cout << std::endl;
-                                  socket.close();
-                                }
-                                else if(ec)
-                                {
-                                  std::cout << "LG error size " << size << " error " << ec.message() << std::endl;
-                                  if(ec == boost::asio::error::eof)
-                                    socket.close();
-                                }
-                              }
-                              );
-
+      callback("poweron", {});
+      
+      finish_operation();
     }
     else
     {
@@ -471,7 +464,61 @@ Connection: Keep-Alive
     }
     // socket.close();
   }
+
+  void catastrophe()
+  {
+    socket.close();
+    outstanding_operation = true;
+    socket.async_connect(endpoint, std::bind(&lg_ip::connect_handler, this, std::placeholders::_1));
+  }
+
+  void command_response(std::size_t size)
+  {
+    assert(!!outstanding_operation);
+    // std::cout << "command response size " << size << std::endl;
+    // std::copy(buffer.begin(), buffer.begin() + size, std::ostream_iterator<char>(std::cout));
+    // std::endl(std::cout);
+    namespace x3 = boost::spirit::x3;
+    namespace fusion = boost::fusion;
+    auto iterator = buffer.begin();
+    boost::fusion::vector3<int, std::string, unsigned int> attr;
+    // <?xml version="1.0" encoding="utf-8"?><envelope><HDCPError>200</HDCPError><HDCPErrorDetail>OK</HDCPErrorDetail><session>114859659</session></envelope>
+    if(x3::parse(iterator, buffer.begin() + size
+                 , x3::omit[+(x3::char_ - ("\r\n\r\n"))]
+                 >> "\r\n\r\n"
+                 >> "<?xml version=\"1.0\" encoding=\"utf-8\"?><envelope><HDCPError>"
+                 >> x3::int_
+                 >> "</HDCPError><HDCPErrorDetail>"
+                 >> (+(x3::char_ - '<'))
+                 >> "</HDCPErrorDetail><session>"
+                 >> x3::uint_
+                 >> "</session></envelope>"
+                 , attr)
+       && fusion::at_c<0>(attr) >= 200 && fusion::at_c<0>(attr) < 300)
+    {
+      command_queue.erase(command_queue.begin());
+      std::cout << "response was OK from LG" << std::endl;
+      finish_operation();
+    }
+    else
+      catastrophe();
+  }
   
+  void finish_operation()
+  {
+    std::cout << "Operation finished" << std::endl;
+    socket.close();
+    if(!command_queue.empty())
+    {
+      socket.open(boost::asio::ip::tcp::v4());
+      socket.async_connect(endpoint, std::bind(&lg_ip::command_connect_handler, this, std::placeholders::_1));
+    }
+    else
+      outstanding_operation = false;
+  }
+  
+  bool outstanding_operation;
+  std::vector<command> command_queue;
   std::array<char, 4096> buffer;
   boost::asio::ip::tcp::socket socket;
   boost::asio::ip::tcp::acceptor acceptor;

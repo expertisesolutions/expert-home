@@ -280,12 +280,17 @@ struct lg_ip
     socket.async_connect(endpoint, std::bind(&lg_ip::command_connect_handler, this, std::placeholders::_1));
   }
 
+  //$sess.get("/hdcp/api/data?target=cur_channel&session=#{$lgtv[:session]}",$headers)
+  
   void command_run(command const& c, boost::system::error_code& ec)
   {
+    std::function<void(std::size_t)> command_response;
+    
     std::cout << "connection OK command: " << c.command << std::endl;
-    std::string body;
+    std::string request;
     if(c.command == "HandleKeyInput" && c.args.size() == 1)
     {
+      std::string body;
       namespace x3 = boost::spirit::x3;
       namespace fusion = boost::fusion;
       if(x3::generate(std::back_insert_iterator<std::string>(body)
@@ -299,26 +304,49 @@ struct lg_ip
                       , fusion::vector3<int, std::string const&, /*std::string*/eh::argument_variant>
                       (session, c.command, /*boost::get<std::string>(*/c.args[0]/*)*/)))
       {
-        std::cout << "Generated " << std::endl;
+        std::cout << "Generated body " << std::endl;
         std::copy(body.begin(), body.end(), std::ostream_iterator<char>(std::cout));
         std::cout << std::endl;
+
+        std::stringstream message;
+        message <<
+          "POST /hdcp/api/dtv_wifirc HTTP/1.1\r\n"
+          "Host: 192.168.33.54:8080\r\n"
+          "Content-Type: application/atom+xml\r\n"
+          "Content-Length: " << body.size() <<
+          "\r\nConnection: Close\r\n\r\n" <<
+          body
+          ;
+        request = message.str();
+
+        command_response = std::bind(&lg_ip::command_handle_key_response, this, std::placeholders::_1);
       }
       else
         throw std::runtime_error("Failed generation");
     }
+    else if(c.command == "CurrentChannel")
+    {
+      std::stringstream message;
+      message <<
+        "GET /hdcp/api/data?target=cur_channel&session="
+              << session <<
+        " HTTP/1.1\r\n"
+        "Host: 192.168.33.54:8080\r\n"
+        "Content-Type: application/atom+xml\r\n"
+        "Content-Length: 0\r\n"
+        "Connection: Close\r\n\r\n"
+        ;
+      request = message.str();
+
+      std::cout << "Generated request " << std::endl;
+      std::copy(request.begin(), request.end(), std::ostream_iterator<char>(std::cout));
+      std::cout << std::endl;
+
+      command_response = std::bind(&lg_ip::command_current_channel_response, this, std::placeholders::_1);
+    }
     else
       throw std::runtime_error("Unknown command");
-    std::stringstream message;
-    message <<
-      "POST /hdcp/api/dtv_wifirc HTTP/1.1\r\n"
-      "Host: 192.168.33.54:8080\r\n"
-      "Content-Type: application/atom+xml\r\n"
-      "Content-Length: " << body.size() <<
-      "\r\nConnection: Close\r\n\r\n" <<
-      body
-      ;
 
-    std::string request = message.str();
     boost::asio::write(socket, boost::asio::const_buffers_1(&request[0], request.size()), ec);
 
     if(!ec)
@@ -332,14 +360,14 @@ struct lg_ip
                               //   return ec || size == 1024 || std::find(buffer.begin(), last, '\r') != last;
                               // }
                               // , boost::bind(&denon_ip::handler, this, _1, _2)
-                              , [this] (boost::system::error_code const& ec, std::size_t size)
+                              , [this, command_response] (boost::system::error_code const& ec, std::size_t size)
                               {
                                 // auto last = buffer.begin() + size;
                                 // return ec || size == 1024 || std::find(buffer.begin(), last, '\r') != last;
                                 if(size)
                                 {
                                   std::cout << "received " << size << std::endl;
-                                  this->command_response(size);
+                                  command_response(size);
                                 }
                                 else if(ec)
                                 {
@@ -461,18 +489,23 @@ struct lg_ip
     else
     {
       std::cout << "error parsing" << std::endl;
+      std::copy(buffer.begin(), buffer.begin() + size
+                , std::ostream_iterator<char>(std::cout));
+      std::endl(std::cout);
     }
     // socket.close();
   }
 
   void catastrophe()
   {
+    std::cout << "Catastrophic error, restarting session and trying all over again" << std::endl;
+
     socket.close();
     outstanding_operation = true;
     socket.async_connect(endpoint, std::bind(&lg_ip::connect_handler, this, std::placeholders::_1));
   }
 
-  void command_response(std::size_t size)
+  void command_handle_key_response(std::size_t size)
   {
     assert(!!outstanding_operation);
     // std::cout << "command response size " << size << std::endl;
@@ -501,7 +534,81 @@ struct lg_ip
       finish_operation();
     }
     else
+    {
+      std::cout << "can't parse response" << std::endl;
+      std::copy(buffer.begin(), buffer.begin() + size
+                , std::ostream_iterator<char>(std::cout));
+      std::endl(std::cout);
       catastrophe();
+    }
+  }
+
+  void command_current_channel_response(std::size_t size)
+  {
+    assert(!!outstanding_operation);
+    // std::cout << "command response size " << size << std::endl;
+    // std::copy(buffer.begin(), buffer.begin() + size, std::ostream_iterator<char>(std::cout));
+    // std::endl(std::cout);
+    namespace x3 = boost::spirit::x3;
+    namespace fusion = boost::fusion;
+    auto iterator = buffer.begin();
+    boost::fusion::vector8<int, std::string, unsigned int
+                           , std::string
+                           , int, int
+                           , int, int> attr;
+    // <?xml version="1.0" encoding="utf-8"?><envelope><HDCPError>200</HDCPError><HDCPErrorDetail>OK</HDCPErrorDetail><session>454442430</session><data><type>terrestrial</type><major>4</major><minor>1</minor><sourceIndex>1</sourceIndex><physicalNum>29</physicalNum
+    if(x3::parse(iterator, buffer.begin() + size
+                 , x3::omit[+(x3::char_ - ("\r\n\r\n"))]
+                 >> "\r\n\r\n"
+                 >> "<?xml version=\"1.0\" encoding=\"utf-8\"?><envelope><HDCPError>"
+                 >> x3::int_
+                 >> "</HDCPError><HDCPErrorDetail>"
+                 >> (+(x3::char_ - '<'))
+                 >> "</HDCPErrorDetail><session>"
+                 >> x3::uint_
+                 >> "</session>"
+                 >> "<data><type>"
+                 >> (+(x3::char_ - '<'))
+                 >> "</type><major>"
+                 >> x3::uint_
+                 >> "</major><minor>"
+                 >> x3::uint_
+                 >> "</minor><sourceIndex>"
+                 >> x3::uint_
+                 >> "</sourceIndex><physicalNum>"
+                 >> x3::uint_
+                 >> "</physicalNum><name>"
+                 >> x3::omit[(*(x3::char_ - '<'))]
+                 >> "</name></data></envelope>"
+                 , attr)
+       && fusion::at_c<0>(attr) >= 200 && fusion::at_c<0>(attr) < 300)
+    {
+      command_queue.erase(command_queue.begin());
+      std::cout << "response was OK from LG" << std::endl;
+      finish_operation();
+
+      auto type = [&] (auto v) { return fusion::at_c<3>(v); };
+      auto (major) = [&] (auto v) { return fusion::at_c<4>(v); };
+      auto (minor) = [&] (auto v) { return fusion::at_c<5>(v); };
+      auto source_index = [&] (auto v) { return fusion::at_c<6>(v); };
+      auto physical_number = [&] (auto v) { return fusion::at_c<7>(v); };
+      
+      std::cout << "Channel Type " << type(attr) << std::endl;
+      std::cout << "Channel Major " << (major)(attr) << std::endl;
+      std::cout << "Channel Minor " << (minor)(attr) << std::endl;
+      std::cout << "Channel source_index " << source_index(attr) << std::endl;
+      std::cout << "Channel Physical number " << physical_number(attr) << std::endl;
+
+      callback("currentchannel", {type(attr), (major)(attr), (minor)(attr), source_index(attr), physical_number(attr)});
+    }
+    else
+    {
+      std::cout << "can't parse response" << std::endl;
+      std::copy(buffer.begin(), buffer.begin() + size
+                , std::ostream_iterator<char>(std::cout));
+      std::endl(std::cout);
+      catastrophe();
+    }
   }
   
   void finish_operation()

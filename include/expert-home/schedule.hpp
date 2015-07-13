@@ -30,6 +30,18 @@ void schedule(boost::asio::io_service& service, unsigned int seconds, unsigned i
   timer->async_wait(std::bind(schedule_expired, std::placeholders::_1, function));
 }
 
+void schedule_daily(boost::asio::io_service& service, unsigned int second, unsigned int minute, unsigned int hour
+                    , luabind::object function)
+{
+  std::cout << "schedule daily at " << hour << ':' << minute << ':' << second << std::endl;
+  boost::asio::deadline_timer* timer = new boost::asio::deadline_timer(service);
+  timer->expires_at
+    ({boost::date_time::day_clock<boost::gregorian::date>::local_day()
+        , boost::posix_time::seconds(second) + boost::posix_time::minutes(minute)
+        + boost::posix_time::hours(hour)});
+  timer->async_wait(std::bind(schedule_expired, std::placeholders::_1, function));
+}
+
 void register_schedule(boost::asio::io_service& service, lua_State* L)
 {
   luabind::module(L)
@@ -39,7 +51,12 @@ void register_schedule(boost::asio::io_service& service, lua_State* L)
                 (std::bind(&schedule, std::ref(service), std::placeholders::_1
                            , std::placeholders::_2, std::placeholders::_3
                            , std::placeholders::_4)))
-  ];
+   , luabind::def("schedule_daily", luabind::tag_function<void(unsigned int, unsigned int, unsigned int
+                                                               , luabind::object)>
+                  (std::bind(&schedule_daily, std::ref(service), std::placeholders::_1
+                             , std::placeholders::_2, std::placeholders::_3
+                             , std::placeholders::_4)))
+   ];
 }
   
 }

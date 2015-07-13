@@ -5,8 +5,11 @@
 
 local device = {
    lg_ip = require('lua/devices/lg-ip'),
-
    is_poweron = false,
+   on_poweron_c = {},
+   on_poweroff_c = {},
+   on_currentchannel_c = {},
+   on_cursorvisible_c = {},
 }
 
 function device.callback ()
@@ -19,17 +22,41 @@ device.lg_power_on
                                'felipe.m.almeida@gmail.com',
                                'elF19le', device.callback)
 
-function device.on_poweron(f)
-   device.lg_ip.on_poweron(f)
-end
+device.lg_ip.on_poweron(function()
+      if(not device.is_poweron) then
+         device.is_poweron = true
+         for i=1, #device.on_poweron_c do
+            device.on_poweron_c[i] ()
+         end
+      end
+end)
+device.lg_ip.on_poweroff(function()
+      if(device.is_poweron) then
+         device.is_poweron = false
+         for i=1, #device.on_poweroff_c do
+            device.on_poweroff_c[i] ()
+         end
+      end
+end)
+device.lg_ip.on_currentchannel(function(vars)
+      for i=1, #device.on_currentchannel_c do
+         device.on_currentchannel_c[i] (vars)
+      end
+end)
+device.lg_ip.on_cursorvisible(function()
+      for i=1, #device.on_cursorvisible_c do
+         device.on_cursorvisible_c[i] ()
+      end
+end)
 
+function device.get_currentchannel()
+   device.lg_ip.get_currentchannel()
+end
 function device.poweroff()
    device.lg_ip.poweroff()
-   device.is_poweron = false
 end
 function device.poweron()
    device.lg_power_on:send_command('PowerOn', {})
-   device.is_poweron = true
 end
 function device.channelup()
    device.lg_ip.channelup()
@@ -64,5 +91,42 @@ end
 function device.record()
    device.lg_ip.record()
 end   
+function device.directionup()
+   device.lg_ip.directionup()
+end   
+function device.directiondown()
+   device.lg_ip.directiondown()
+end   
+function device.directionleft()
+   device.lg_ip.directionleft()
+end   
+function device.directionright()
+   device.lg_ip.directionright()
+end   
+function device.home()
+   device.lg_ip.home()
+end   
+function device.select()
+   device.lg_ip.select()
+end   
+function device.back()
+   device.lg_ip.back()
+end   
+function device.exit()
+   device.lg_ip.exit()
+end   
+
+function device.on_poweron(f)
+   table.insert(device.on_poweron_c, f)
+end
+function device.on_poweroff(f)
+   table.insert(device.on_poweroff_c, f)
+end
+function device.on_currentchannel(f)
+   table.insert(device.on_currentchannel_c, f)
+end
+function device.on_cursorvisible(f)
+   table.insert(device.on_cursorvisible_c, f)
+end
 
 return device

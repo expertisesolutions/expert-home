@@ -190,32 +190,23 @@ $audio_controls = LgRemote::OrderedHash[
 local device =
    {
       on_poweron_c = nil,
+      on_poweroff_c = nil,
+      on_currentchannel_c = nil,
+      on_cursorvisible_c = nil,
    }
 
-function device.on_poweron(f)
-   if(type(f) == 'function') then
-      print('lg-ip poweron callback set for ', f)
-      device.on_poweron_c = f
-      print('lg-ip poweron callback set for ', device.on_poweron_c)
-   else
-      error('on_poweron must receive a function')
+function device.callback (d, command, arg1, arg2, arg3, arg4, arg5)
+   if(command == 'poweron' and device.on_poweron_c) then
+      device.on_poweron_c ()
+   elseif(command == 'currentchannel' and device.on_currentchannel_c) then
+      device.on_currentchannel_c({ch_type = arg1, major = arg2, minor = arg3
+                                  , sourceindex = arg4, physicalnumber = arg5})
+   elseif(command == 'byebye' and device.on_poweroff_c) then
+      device.on_poweroff_c()
+   elseif(command == 'CursorVisible' and device.on_cursorvisible_c) then
+      device.on_cusrorvisible_c()
    end
-end
-
-function device.check_poweron()
-   print('CHECK lg-ip poweron callback set for ', device.on_poweron_c)
-end
-
-function device.callback (d, command)
-   print('real callback')
-   if(command == 'poweron') then
-      print('power command, lets see if we have callback', device.on_poweron_c)
-      device.check_poweron()
-      if(device.on_poweron_c) then
-         print ('calling callback poweron')
-         device.on_poweron_c ()
-      end
-   end
+   
 end
 
 device.raw_device = avail_devices.lg('lg', 'tv', 'SMBDJA', device.callback)
@@ -256,6 +247,51 @@ end
 function device.record()
    device.raw_device:send_command('HandleKeyInput', {'189'})
 end   
+function device.get_currentchannel()
+   device.raw_device:send_command('CurrentChannel', {})
+end
+function device.directionup()
+   device.raw_device:send_command('HandleKeyInput', {'64'})
+end   
+function device.directiondown()
+   device.raw_device:send_command('HandleKeyInput', {'65'})
+end   
+function device.directionleft()
+   device.raw_device:send_command('HandleKeyInput', {'7'})
+end   
+function device.directionright()
+   device.raw_device:send_command('HandleKeyInput', {'6'})
+end   
+function device.home()
+   device.raw_device:send_command('HandleKeyInput', {'67'})
+end   
+function device.select()
+   device.raw_device:send_command('HandleKeyInput', {'68'})
+end   
+function device.back()
+   device.raw_device:send_command('HandleKeyInput', {'40'})
+end   
+function device.exit()
+   device.raw_device:send_command('HandleKeyInput', {'91'})
+end   
+
+function device.on_poweron(f)
+   assert(type(f) == 'function')
+   device.on_poweron_c = f
+end
+function device.on_poweroff(f)
+   assert(type(f) == 'function')
+   device.on_poweroff_c = f
+end
+function device.on_currentchannel(f)
+   assert(type(f) == 'function')
+   device.on_currentchannel_c = f
+end
+function device.on_cursorvisible(f)
+   assert(type(f) == 'function')
+   device.on_cursorvisible_c = f
+end
+
 
 return device
 

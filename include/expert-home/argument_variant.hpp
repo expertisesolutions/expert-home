@@ -4,6 +4,8 @@
 #include <boost/variant.hpp>
 #include <luabind/luabind.hpp>
 
+#include <iosfwd>
+
 namespace eh {
 
 struct argument_variant : //boost::spirit::extended_variant<int, std::string>
@@ -15,6 +17,25 @@ struct argument_variant : //boost::spirit::extended_variant<int, std::string>
   argument_variant(std::string i) : base_type(i) {}
 };
 
+struct ostream_visitor
+{
+  std::ostream* os;
+  void operator()(std::string const& s) const
+  {
+    (*os) << "[variant string: " << s << ']';
+  }
+  void operator()(int i) const
+  {
+    (*os) << "[variant int: " << i << ']';
+  }
+};
+  
+std::ostream& operator<<(std::ostream& os, argument_variant const& v)
+{
+  boost::apply_visitor(ostream_visitor{&os}, v);
+  return os;
+}
+  
 }
 
 namespace boost { namespace spirit { namespace x3 { namespace traits {

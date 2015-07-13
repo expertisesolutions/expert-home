@@ -26,6 +26,11 @@ namespace fusion = boost::fusion;
 namespace x3 = boost::spirit::x3;
 using x3::string; using x3::int_;
 using x3::omit; using x3::eps; using x3::char_;
+
+auto up_down_or_number = (string("UP") | string("DOWN") | int_);
+//auto up_down = (string("UP") | string("DOWN"));
+auto on_off = (string("ON") | string("OFF"));
+//auto on_off_up_down_or_number = string("ON") | string("OFF") | string("UP") | string("DOWN") | int_;
   
 x3::rule<class switch_input, fusion::vector2<std::string, std::vector<std::string>>> const switch_input("switch_input");
 auto switch_input_def =
@@ -48,9 +53,33 @@ auto zone_master_def =
        //| (string("FAVORITE") >> int_ >> omit[' '] >> string("MEMORY"))
        )
    );
-  
+auto zone_master_vol_def = string("MV") >> up_down_or_number;
   //BOOST_SPIRIT_DEFINE(switch_input = switch_input_def);
 
+auto zone2_def =
+  x3::string("Z2")
+  >> (string("PHONO") | string("CD") | string("TUNER") | string("DVD")
+      | string("BD") | string("TV") | string("SAT/CBL") | string("MPLAY")
+      | string("GAME") | string("HDRADIO") | string("NET") | string("PANDORA")
+      | string("SIRIUSXM") | string("SPOTIFY") | string("LASTFM") | string("FLICKR")
+      | string("IRADIO") | string("SERVER") | string("FAVORITES") | string("BT")
+      | string("USB/IPOD") | string("USB") | string("IPD") | string("IRP")
+      | string("FVP")
+      | string("SOURCE") // same as main zone
+      | string("UP") | string("DOWN") | string("ON") | string("OFF")
+      | x3::int_
+      )
+  ;
+auto system_control_def =
+  x3::string("MN")
+  >> (x3::string("ZST ON") /*>> (x3::string("ON") | x3::string("OFF") | x3::string("?"))*/
+      | x3::string("ZST OFF")
+     )
+  ;
+
+auto system_power_def = string("PW") >> (string("ON") | string("STANDBY"));
+auto mute_def = string("MU") >> on_off;
+  
 }
     
 struct denon_ip {
@@ -64,17 +93,18 @@ struct denon_ip {
 
   void send_command(std::string const& command, std::vector<argument_variant> const& args)
   {
-    std::cout << "Command " << command << " size " << args.size() << std::endl;
+    std::cout << "Denon Command " << command << " size " << args.size() << std::endl;
 
     namespace x3 = boost::spirit::x3;
     namespace fusion = boost::fusion;
 
-    std::string arg1;
+    argument_variant arg1;
     if(!args.empty())
-      if(std::string const* string = boost::get<std::string>(&args[0]))
-        arg1 = *string;
+      arg1 = args[0];
+      // if(std::string const* string = boost::get<std::string>(&args[0]))
+      //   arg1 = *string;
     std::cout << "arg1 " << arg1 << std::endl;
-    fusion::vector2<std::string, std::string> attr(command, arg1);
+    fusion::vector2<std::string, argument_variant> attr(command, arg1);
 
     std::string output;
     if(x3::generate(std::back_inserter(output)
@@ -82,6 +112,11 @@ struct denon_ip {
                     (
                      denon_detail::switch_input_def
                      | denon_detail::zone_master_def
+                     | denon_detail::zone_master_vol_def
+                     | denon_detail::zone2_def
+                     | denon_detail::system_control_def
+                     | denon_detail::system_power_def
+                     | denon_detail::mute_def
                     )
                     >> x3::omit['\r']
                     , attr))
@@ -120,16 +155,14 @@ struct denon_ip {
             using x3::string; using x3::int_;
             using x3::omit; using x3::eps; using x3::char_;
             auto no_args = x3::attr(std::vector<argument_variant>());
-            auto up_down_or_number = (string("UP") | string("DOWN") | int_);
-            //auto up_down = (string("UP") | string("DOWN"));
-            auto on_off = (string("ON") | string("OFF"));
-            //auto on_off_up_down_or_number = string("ON") | string("OFF") | string("UP") | string("DOWN") | int_;
+            using denon_detail::up_down_or_number;
+            using denon_detail::on_off;
             
             bool b = boost::spirit::x3::parse
               (first, last
                ,
-               ( (string("PW") >> (string("ON") | string("STANDBY")))
-                 | (string("MV") >> up_down_or_number)
+               ( denon_detail::system_power_def
+                 | denon_detail::zone_master_vol_def
                  // CV command
                  | (string("CV")
                     >> ((string("FL") >> omit[' '] >>     up_down_or_number)
@@ -163,7 +196,7 @@ struct denon_ip {
                         |  (string("BDR") >> omit[' '] >> up_down_or_number)
                         |  (string("ZRL") >> omit[' '] >> up_down_or_number))
                    )
-                 | (string("MU") >> on_off)
+                 | denon_detail::mute_def
                  | denon_detail::switch_input_def
                  | denon_detail::zone_master_def
                  | (string("SD")
@@ -201,8 +234,8 @@ struct denon_ip {
                         | string("SCHAUTO") | string("AUDIO AMP") | string("AUDIO TV") | string("VPMAUTO")
                         | string("VPMGAME") | string("VPMMOVI")
                         ))
-                 // | (string("PS")
-                 //    >> (
+                 | (string("PS")
+                    >> (
                  //        (string("TONE CTRL") >> omit[' '] >> on_off)
                  //        // | (string("BAS") >> omit[' '] >> up_down_or_number)
                  //        // | (string("TRE") >> omit[' '] >> up_down_or_number)
@@ -220,11 +253,11 @@ struct denon_ip {
                  //        // //        | string("FR"))
                  //        // //    )
                  //        // | (string("PHG") >> omit[' '] >> string("LOW") | string("MID") | string("HI"))
-                 //        // | (string("MULTEQ") >> omit[':'] >>
-                 //        //    (string("AUDYSSEY") | string("BYP.LR") | string("FLAT") | string("MANUAL") | string("OFF")))
-                 //        // | (string("DYNEQ") >> omit[' '] >> on_off)
-                 //        // | (string("REFLEV") >> omit[' '] >> int_)
-                 //        // | (string("DYNVOL") >> omit[' '] >> (string("HEV") | string("MED") | string("LIT") | string("OFF")))
+                        (string("MULTEQ") >> omit[':'] >>
+                           (string("AUDYSSEY") | string("BYP.LR") | string("FLAT") | string("MANUAL") | string("OFF")))
+                        | (string("DYNEQ") >> omit[' '] >> on_off)
+                        | (string("REFLEV") >> omit[' '] >> int_)
+                        | (string("DYNVOL") >> omit[' '] >> (string("HEV") | string("MED") | string("LIT") | string("OFF")))
                  //        // | (string("LFC") >> omit[' '] >> on_off)
                  //        // | (string("CNTAMT") >> omit[' '] >> up_down_or_number)
                  //        // | (string("DSX") >> omit[' ']
@@ -235,7 +268,9 @@ struct denon_ip {
                  //        // | (string("DRC") >> omit[' ']
                  //        //    >> (string("AUTO") | string("LOW") | string("MID") | string("HI") | string("OFF")))
                  //        // | (string("BSC") >> omit[' '] >> up_down_or_number)
-                 //       // ))
+                       ))
+                 | denon_detail::zone2_def
+                 | denon_detail::system_control_def
                )
                >> x3::eoi
                , value
@@ -288,15 +323,35 @@ struct denon_ip {
                             , [this] (boost::system::error_code const& ec, std::size_t size)
                             {
                               auto last = buffer.begin() + size;
-                              return ec || size == 1024 || std::find(buffer.begin(), last, '\r') != last;
+                              return ec || size == buffer.size() || std::find(buffer.begin(), last, '\r') != last;
                             }
                             , boost::bind(&denon_ip::handler, this, _1, _2)
                             );
+
+    const char pwstatus[] = "PW?\r";
+    boost::asio::write(socket, boost::asio::const_buffers_1(&pwstatus[0], sizeof(pwstatus)-1));
+    const char zmstatus[] = "ZM?\r";
+    boost::asio::write(socket, boost::asio::const_buffers_1(&zmstatus[0], sizeof(zmstatus)-1));
+    const char mvstatus[] = "MV?\r";
+    boost::asio::write(socket, boost::asio::const_buffers_1(&mvstatus[0], sizeof(mvstatus)-1));
+    const char z2status[] = "Z2?\r";
+    boost::asio::write(socket, boost::asio::const_buffers_1(&z2status[0], sizeof(z2status)-1));
+    const char zonestereostatus[] = "MNZST?\r";
+    boost::asio::write(socket, boost::asio::const_buffers_1(&zonestereostatus[0], sizeof(zonestereostatus)-1));
+    const char psmulteqstatus[] = "PSMULTEQ: ?\r";
+    boost::asio::write(socket, boost::asio::const_buffers_1(&psmulteqstatus[0], sizeof(psmulteqstatus)-1));
+    const char psdyneqstatus[] = "PSDYNEQ ?\r";
+    boost::asio::write(socket, boost::asio::const_buffers_1(&psdyneqstatus[0], sizeof(psdyneqstatus)-1));
+    const char psdynvolstatus[] = "PSDYNVOL ?\r";
+    boost::asio::write(socket, boost::asio::const_buffers_1(&psdynvolstatus[0], sizeof(psdynvolstatus)-1));
+    const char psreflevstatus[] = "PSREFLEV ?\r";
+    boost::asio::write(socket, boost::asio::const_buffers_1(&psreflevstatus[0], sizeof(psreflevstatus)-1));
+    
     std::cout << "watch" << std::endl;
     this->function = function;
   }
 
-  std::array<char, 1024> buffer;
+  std::array<char, 4096> buffer;
   boost::asio::ip::tcp::socket socket;
   std::string hostname;
   std::function<void(std::string, std::vector<argument_variant>)> function;

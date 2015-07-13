@@ -6,6 +6,7 @@
 #include <iostream>
 
 #include <boost/asio.hpp>
+#include <expert-home/server/ssdp.hpp>
 #include <expert-home/devices/harmony-device.hpp>
 #include <expert-home/devices/rs232.hpp>
 #include <expert-home/devices/denon-ip.hpp>
@@ -97,6 +98,8 @@ int main()
   std::map<std::string, eh::device::denon_ip> denons;
   std::map<std::string, eh::device::harmony_device> harmony_devices;
   std::map<std::string, eh::device::roku_ip> roku_ips;
+
+  eh::server::ssdp ssdp_server(io_service, 1900);
   
   luabind::module(L, "avail_devices")
   [
@@ -137,12 +140,13 @@ int main()
                     return harmony_obj;
                   }))
    , luabind::def("roku_ip",
-                  luabind::tag_function<luabind::object(std::string, std::string, unsigned short, luabind::object)>
+                  luabind::tag_function<luabind::object(std::string, std::string, unsigned short, luabind::object
+                                                        , std::string)>
                   ([&] (std::string name, std::string listen_ip, unsigned short port
-                        , luabind::object function) -> luabind::object
+                        , luabind::object function, std::string serial) -> luabind::object
                   {
                     auto iterator = roku_ips.emplace
-                      (name, eh::device::roku_ip{io_service, listen_ip, port}).first;
+                      (name, eh::device::roku_ip{io_service, listen_ip, port, ssdp_server, serial}).first;
                     luabind::object roku_obj(L, eh::devices::lua::input(iterator->second));
                     iterator->second.watch(std::bind(&::callback_function, L, roku_obj, std::placeholders::_1
                                                      , std::placeholders::_2, function));

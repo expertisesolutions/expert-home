@@ -13,6 +13,8 @@
 #include <http-parsers/http/status_line.hpp>
 #include <json-parser/json.hpp>
 
+#include <expert-home/server/ssdp.hpp>
+
 namespace eh { namespace device {
 
 namespace roku_detail {
@@ -77,52 +79,6 @@ const char answer_dlna[] =
   "</root>\r\n"
   ;
 
-struct ssdp_task
-{
-  boost::asio::ip::udp::endpoint remote_endpoint;
-  std::array<char, 4096> buffer;
-};
-  
-  //auto ;
-
-void asynchronous_ssdp(boost::asio::io_service* service, std::string ssdp_response
-                       , boost::asio::ip::udp::socket* ssdp_socket)
-{
-  namespace x3 = boost::spirit::x3;
-  
-  boost::shared_ptr<struct ssdp_task> ssdp_task
-    (new struct ssdp_task);
-  ssdp_socket->async_receive_from
-    (boost::asio::mutable_buffers_1(&ssdp_task->buffer[0], ssdp_task->buffer.size())
-     , ssdp_task->remote_endpoint
-     // , [ssdp_task] (boost::system::error_code const& ec, std::size_t size)
-     // {
-     //   return x3::parse(ssdp_task->buffer.begin(), ssdp_task->buffer.begin() + size
-     //                    , x3::lit("M-SEARCH * HTTP/1.1\r\n")
-     //                    >> *http_parsers::http::header
-     //                    >> x3::lit("\r\n")
-     //                    );
-     // }
-     , [=] (boost::system::error_code const& ec, std::size_t size)
-     {
-       std::cout << "received ssdp packet" << std::endl;
-       // std::copy(ssdp_task->buffer.begin(), ssdp_task->buffer.begin() + size, std::ostream_iterator<char>(std::cout));
-       // std::endl(std::cout);
-
-       if(x3::parse(ssdp_task->buffer.begin(), ssdp_task->buffer.begin() + size
-                    , x3::lit("M-SEARCH * HTTP/1.1\r\n")))
-       {
-         std::cout << "sending response" << std::endl;
-         ssdp_socket->send_to
-           (boost::asio::const_buffers_1(&ssdp_response[0], ssdp_response.size())
-            , ssdp_task->remote_endpoint);
-       }
-
-       asynchronous_ssdp(service, ssdp_response, ssdp_socket);
-     }
-     );
-}
-
 struct http_task
 {
   boost::asio::ip::tcp::socket socket;
@@ -171,13 +127,17 @@ void asynchronous_http_read_handler(boost::system::error_code const& ec, std::si
         std::cout << "Send Roku Apps" << std::endl;
         const char apps[] =
           "<apps>\r\n"
-          "<app id=\"11\">Roku Channel Store</app>\r\n"
+          "<app id=\"1\">TV Sala</app>\r\n"
+          "<app id=\"2\">TV Cozinha</app>\r\n"
+          "<app id=\"3\">ChromeCast</app>\r\n"
+          "<app id=\"4\">Jogos</app>\r\n"
+          "<app id=\"5\">Filmes</app>\r\n"
           "<app id=\"12\">Netflix</app>\r\n"
-          "<app id=\"13\">Amazon Video on Demand</app>\r\n"
-          "<app id=\"14\">MLB.TV®</app>\r\n"
-          "<app id=\"26\">Free FrameChannel Service</app>\r\n"
-          "<app id=\"27\">Mediafly</app>\r\n"
-          "<app id=\"28\">Pandora</app>\r\n"
+          //"<app id=\"13\">Amazon Video on Demand</app>\r\n"
+          //"<app id=\"14\">MLB.TV®</app>\r\n"
+          //"<app id=\"26\">Free FrameChannel Service</app>\r\n"
+          //"<app id=\"27\">Mediafly</app>\r\n"
+          //"<app id=\"28\">Pandora</app>\r\n"
           "</apps>\r\n"
           ;
         
@@ -215,8 +175,6 @@ void asynchronous_http_read_handler(boost::system::error_code const& ec, std::si
           ;
     
         boost::asio::write(http_task->socket, boost::asio::const_buffers_1(&response[0], sizeof(response)-1));
-
-        http_task->callback(key, std::vector<argument_variant>{});
       }
     }
     else
@@ -258,7 +216,7 @@ void asynchronous_http(boost::asio::ip::tcp::acceptor* acceptor
     (http_task->socket
      , [=] (boost::system::error_code const& ec)
      {
-       // std::cout << "Accepted HTTP connection" << std::endl;
+       std::cout << "ROKU === Accepted HTTP connection" << std::endl;
        http_task->socket.set_option(boost::asio::ip::tcp::no_delay(true));
        asynchronous_http_read(http_task);
        asynchronous_http(acceptor, http_task->callback);
@@ -272,10 +230,11 @@ void asynchronous_http(boost::asio::ip::tcp::acceptor* acceptor
 struct roku_ip
 {
   roku_ip(boost::asio::io_service& service, std::string listen_ip
-          , unsigned short port)
-    : ssdp_socket(service, boost::asio::ip::udp::v4())
-    , acceptor(service, boost::asio::ip::tcp::endpoint
-               (boost::asio::ip::tcp::v4(), port))
+          , unsigned short port
+          , server::ssdp& ssdp_server
+          , std::string serial)
+    : acceptor(service, boost::asio::ip::tcp::endpoint
+               (boost::asio::ip::address::from_string(listen_ip), port))
   {
     namespace x3 = boost::spirit::x3;
     namespace fusion = boost::fusion;
@@ -291,40 +250,32 @@ struct roku_ip
       >> x3::int_
       >> x3::lit
       ("/\r\n"
-       "USN: uuid:roku:ecp:P0A070000007\r\n"
-       "\r\n")
+       "USN: uuid:roku:ecp:")
+      >> +x3::char_
+      >> x3::lit("\r\n\r\n")
       ;
 
+    std::string ssdp_response;
     if(x3::generate(std::back_insert_iterator<std::string>(ssdp_response)
                     , ssdp_response_grammar_def
-                    , fusion::vector2<std::string const&, unsigned short>
-                    (listen_ip, port)))
+                    , fusion::vector3<std::string const&, unsigned short, std::string const&>
+                    (listen_ip, port, serial)))
     {
-      // std::cout << "Generated SSDP" << std::endl;
-      // std::copy(ssdp_response.begin(), ssdp_response.end()
-      //           , std::ostream_iterator<char>(std::cout));
-      // std::cout << std::endl;
+      std::cout << "Generated SSDP" << std::endl;
+      std::copy(ssdp_response.begin(), ssdp_response.end()
+                , std::ostream_iterator<char>(std::cout));
+      std::cout << std::endl;
+      ssdp_server.add_answer(std::move(ssdp_response));
     }
   }
 
   void watch(std::function<void(std::string, std::vector<argument_variant>)> callback)
   {
     this->callback = callback;
-
-    ssdp_socket.set_option(boost::asio::ip::udp::socket::reuse_address(true));
-    ssdp_socket.set_option(boost::asio::ip::multicast::join_group
-                           (boost::asio::ip::address::from_string("239.255.255.250")));
-    ssdp_socket.set_option(boost::asio::ip::multicast::join_group
-                           (boost::asio::ip::address::from_string("239.255.0.1")));
-    ssdp_socket.bind(boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), 1900));
-
-    roku_detail::asynchronous_ssdp(&ssdp_socket.get_io_service(), ssdp_response, &ssdp_socket);
     roku_detail::asynchronous_http(&acceptor, callback);
   }
 
-  boost::asio::ip::udp::socket ssdp_socket;
   boost::asio::ip::tcp::acceptor acceptor;
-  std::string ssdp_response;
   std::function<void(std::string, std::vector<argument_variant>)> callback;
 };
   

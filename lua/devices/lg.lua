@@ -28,6 +28,7 @@ device.lg_ip.on_poweron(function()
          for i=1, #device.on_poweron_c do
             device.on_poweron_c[i] ()
          end
+         device.on_poweron_c = {}
       end
 end)
 device.lg_ip.on_poweroff(function()
@@ -36,17 +37,20 @@ device.lg_ip.on_poweroff(function()
          for i=1, #device.on_poweroff_c do
             device.on_poweroff_c[i] ()
          end
+         device.on_poweroff_c = {}
       end
 end)
 device.lg_ip.on_currentchannel(function(vars)
       for i=1, #device.on_currentchannel_c do
          device.on_currentchannel_c[i] (vars)
       end
+      device.on_currentchannel_c = {}
 end)
 device.lg_ip.on_cursorvisible(function()
       for i=1, #device.on_cursorvisible_c do
          device.on_cursorvisible_c[i] ()
       end
+      device.on_cursorvisible_c = {}
 end)
 
 function device.get_currentchannel()
@@ -114,6 +118,12 @@ function device.back()
 end   
 function device.exit()
    device.lg_ip.exit()
+end   
+function device.touchmove(x, y)
+   device.lg_ip.touchmove(x, y)
+end   
+function device.touchclick()
+   device.lg_ip.touchclick()
 end   
 
 function device.on_poweron(f)

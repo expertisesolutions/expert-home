@@ -204,7 +204,7 @@ function device.callback (d, command, arg1, arg2, arg3, arg4, arg5)
    elseif(command == 'byebye' and device.on_poweroff_c) then
       device.on_poweroff_c()
    elseif(command == 'CursorVisible' and device.on_cursorvisible_c) then
-      device.on_cusrorvisible_c()
+      device.on_cursorvisible_c()
    end
    
 end
@@ -273,6 +273,12 @@ function device.back()
 end   
 function device.exit()
    device.raw_device:send_command('HandleKeyInput', {'91'})
+end   
+function device.touchmove(x, y)
+   device.raw_device:send_command('HandleTouchMove', {x, y})
+end   
+function device.touchclick()
+   device.raw_device:send_command('HandleTouchClick', {})
 end   
 
 function device.on_poweron(f)

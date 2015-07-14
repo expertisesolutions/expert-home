@@ -27,6 +27,8 @@ activities =
          {
             is_poweron = false,
             is_infopressed = false,
+            on_start_c = {},
+            on_stop_c = {},
          },
       watch_tv_cozinha =
          {
@@ -35,17 +37,36 @@ activities =
          },
       current = nil,
 }
+local function call_all(array)
+   if(array) then
+      for i = 1, #array do
+         array[i] ()
+      end
+   end
+end
+
+local function make_poweron(activity)
+   activities.current = activity
+   if(activity) then
+      call_all(activity.on_start_c)
+      activity.is_poweron = true
+   end
+end
+local function add_poweron(activity, f)
+   activity.on_start_c[#activity.on_start_c+1] = f
+end
 
 function activities.watch_tv_sala.start()
    if(not devices.lg.is_poweron) then
       devices.lg.lg_ip.on_poweron(function ()
-            activities.watch_tv_sala.is_poweron = true
-            activities.current = activities.watch_tv_sala
             devices.lg.input_tv()
+
+            make_poweron(activities.watch_tv_sala)
+            activities.current = activities.watch_tv_sala
       end)
       devices.lg.poweron()
    else
-      activities.watch_tv_sala.is_poweron = true
+      make_poweron(activities.watch_tv_sala)
       activities.current = activities.watch_tv_sala
    end
    
@@ -61,6 +82,15 @@ end
 function activities.watch_tv_sala.stop()
    devices.avr.master.poweroff()
    devices.lg.poweroff()
+end
+function activities.watch_tv_sala.netflix_on()
+   devices.lg.on_cursorvisible(function()
+         devices.lg.touchmove(-1000, -1000)
+         devices.lg.touchmove(1000, 220)
+         devices.lg.touchclick()
+         devices.lg.touchclick()
+   end)
+   devices.lg.home()
 end
 function activities.watch_tv_sala.buttons(command)
    print ('activities.watch_tv_sala.buttons')
@@ -123,13 +153,13 @@ end
 function activities.watch_tv_cozinha.start()
    if(not devices.lg.is_poweron) then
       devices.lg.lg_ip.on_poweron(function ()
-            activities.watch_tv_cozinha.is_poweron = true
+            make_poweron(activities.watch_tv_cozinha)
             activities.current = activities.watch_tv_cozinha
             devices.lg.input_tv()
       end)
       devices.lg.poweron()
    else
-      activities.watch_tv_cozinha.is_poweron = true
+      make_poweron(activities.watch_tv_cozinha)
       activities.current = activities.watch_tv_cozinha
    end
 
@@ -227,6 +257,17 @@ function device_handler(device, command, arg1, arg2, arg3, arg4)
    elseif(command == 'launch' and arg1 == 2) then
       activities.watch_tv_cozinha.start()
       print ('command is launch, launching activity watch_tv_cozinha')
+   elseif(command == 'launch' and arg1 == 12) then
+      if(activities.watch_tv_sala.is_poweron) then
+         if(activities.current ~= activities.watch_tv_sala) then
+            print('should make current')
+         end
+         activities.watch_tv_sala.netflix_on()
+      else
+         add_poweron(activities.watch_tv_sala, activities.watch_tv_sala.netflix_on)
+         activities.watch_tv_sala.start()
+         print ('command is launch, launching activity netflix')
+      end
    elseif(activities.current) then
       activities.current.buttons(command)
    end

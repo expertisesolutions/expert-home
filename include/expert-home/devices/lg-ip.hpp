@@ -213,6 +213,8 @@ Connection: Keep-Alive
 <?xml version="1.0" encoding="utf-8"?><command><session>502017796</session><type>HandleTouchClick</type></command>
 
 <?xml version="1.0" encoding="utf-8"?><command><session>502017796</session><type>HandleTouchMove</type><x>1000</x><y>300</y></command>
+<?xml version="1.0" encoding="utf-8"?><command><session>454442430</session><type>HandleTouchMove</type><x>-1000</x><y>-1000</y></command>
+
 <?xml version="1.0" encoding="utf-8"?><command><session>502017796</session><type>HandleTouchMove</type><x>-1000</x><y>-1000</y></command>
 
   */
@@ -324,6 +326,31 @@ struct lg_ip
       else
         throw std::runtime_error("Failed generation");
     }
+    else if(c.command == "HandleTouchClick")
+    {
+      std::stringstream body_stream;
+      body_stream <<
+        "<?xml version=\"1.0\" encoding=\"utf-8\"?><command><session>"
+              << session <<
+        "</session><type>HandleTouchClick</type></command>";
+      std::string body = body_stream.str();
+      std::stringstream message;
+      message <<
+        "POST /hdcp/api/dtv_wifirc HTTP/1.1\r\n"
+        "Host: 192.168.33.54:8080\r\n"
+        "Content-Type: application/atom+xml\r\n"
+        "Content-Length: " << body.size() << "\r\n"
+        "Connection: Close\r\n\r\n"
+              << body
+        ;
+      request = message.str();
+
+      std::cout << "Generated request " << std::endl;
+      std::copy(request.begin(), request.end(), std::ostream_iterator<char>(std::cout));
+      std::cout << std::endl;
+
+      command_response = std::bind(&lg_ip::command_handle_key_response, this, std::placeholders::_1);
+    }
     else if(c.command == "CurrentChannel")
     {
       std::stringstream message;
@@ -343,6 +370,44 @@ struct lg_ip
       std::cout << std::endl;
 
       command_response = std::bind(&lg_ip::command_current_channel_response, this, std::placeholders::_1);
+    }
+    else if(c.command == "HandleTouchMove" && c.args.size() == 2)
+    {
+      std::string body;
+      namespace x3 = boost::spirit::x3;
+      namespace fusion = boost::fusion;
+      if(x3::generate(std::back_insert_iterator<std::string>(body)
+                      , x3::omit[x3::lit("<?xml version=\"1.0\" encoding=\"utf-8\"?><command><session>")]
+                      >> x3::int_
+                      >> x3::omit[x3::lit("</session><type>")]
+                      >> +x3::char_
+                      >> x3::omit[x3::lit("</type><x>")]
+                      >> (x3::int_ | x3::int_)
+                      >> x3::omit[x3::lit("</x><y>")]
+                      >> (x3::int_ | x3::int_)
+                      >> x3::omit[x3::lit("</y></command>")]
+                      , fusion::vector4<int, std::string const&, eh::argument_variant, eh::argument_variant>
+                      (session, c.command, c.args[0], c.args[1])))
+      {
+        std::stringstream message;
+        message <<
+          "POST /hdcp/api/dtv_wifirc HTTP/1.1\r\n"
+          "Host: 192.168.33.54:8080\r\n"
+          "Content-Type: application/atom+xml\r\n"
+          "Content-Length: " << body.size() <<
+          "\r\nConnection: Close\r\n\r\n" <<
+          body
+          ;
+        request = message.str();
+
+        std::cout << "request" << std::endl;
+        std::copy(request.begin(), request.end(), std::ostream_iterator<char>(std::cout));
+        std::cout << std::endl;
+
+        command_response = std::bind(&lg_ip::command_handle_key_response, this, std::placeholders::_1);
+      }
+      else
+        throw std::runtime_error("Failed generation");
     }
     else
       throw std::runtime_error("Unknown command");

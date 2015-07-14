@@ -37,11 +37,13 @@ function device.callback(d, command, arg1, arg2, arg3, arg4)
          for i = 1, #device.master.on_poweron_c do
             device.master.on_poweron_c[i]()
          end
+         device.master.on_poweron_c = {}
       elseif(arg1 == 'OFF' and device.master.is_poweron) then
          device.master.is_poweron = false
          for i = 1, #device.master.on_poweroff_c do
             device.master.on_poweroff_c[i]()
          end
+         device.master.on_poweroff_c = {}
       end
    elseif (command == 'PW') then
       if(arg1 == 'ON' and not device.is_poweron) then
@@ -49,11 +51,13 @@ function device.callback(d, command, arg1, arg2, arg3, arg4)
          for i = 1, #device.on_poweron_c do
             device.on_poweron_c[i]()
          end
+         device.on_poweron_c = {}
       elseif(arg1 == 'STANDBY' and device.is_poweron) then
          device.is_poweron = false
          for i = 1, #device.on_poweroff_c do
             device.on_poweroff_c[i]()
          end
+         device.on_poweroff_c = {}
       end
    elseif (command == 'Z2') then
       -- zone2
@@ -70,11 +74,13 @@ function device.callback(d, command, arg1, arg2, arg3, arg4)
             for i = 1, #device.zone2.on_poweron_c do
                device.zone2.on_poweron_c[i]()
             end
+            device.zone2.on_poweron_c = {}
          elseif(arg1 == 'OFF' and device.zone2.is_poweron) then
             device.zone2.is_poweron = false
             for i = 1, #device.zone2.on_poweroff_c do
                device.zone2.on_poweroff_c[i]()
             end
+            device.zone2.on_poweroff_c = {}
          end
       end
    end

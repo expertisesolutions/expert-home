@@ -209,6 +209,7 @@ Content-Length: 144
 Connection: Keep-Alive
 
 <?xml version="1.0" encoding="utf-8"?><event><session>502017796</session><type>CursorVisible</type><value>false</value><mode>auto</mode></event>
+<?xml version="1.0" encoding="utf-8"?><event><session>1535748147</session><type>CursorVisible</type><value>true</value><mode>auto</mode></event>
 
 <?xml version="1.0" encoding="utf-8"?><command><session>502017796</session><type>HandleTouchClick</type></command>
 
@@ -371,6 +372,42 @@ struct lg_ip
 
       command_response = std::bind(&lg_ip::command_current_channel_response, this, std::placeholders::_1);
     }
+    /*else if(c.command == "CursorVisible" && c.args.size() == 1 && boost::get<int>(&c.args[0]))
+    {
+      std::string body;
+      namespace x3 = boost::spirit::x3;
+      namespace fusion = boost::fusion;
+      if(x3::generate(std::back_insert_iterator<std::string>(body)
+                      , x3::omit[x3::lit("<?xml version=\"1.0\" encoding=\"utf-8\"?><event><session>")]
+                      >> x3::int_
+                      >> x3::omit[x3::lit("</session><name>")]
+                      >> +x3::char_
+                      >> x3::omit[x3::lit("</name><value>")]
+                      >> +x3::char_
+                      >> x3::omit[x3::lit("</value><mode>auto</mode></event>")]
+                      , fusion::vector3<int, std::string const&, const char*>
+                      (session, c.command, boost::get<int>(c.args[0]) ? "true" : "false")))
+      {
+        std::stringstream message;
+        message <<
+          "POST /hdcp/api/dtv_wifirc HTTP/1.1\r\n"
+          "Host: 192.168.33.54:8080\r\n"
+          "Content-Type: application/atom+xml\r\n"
+          "Content-Length: " << body.size() <<
+          "\r\nConnection: Close\r\n\r\n" <<
+          body
+          ;
+        request = message.str();
+
+        std::cout << "request" << std::endl;
+        std::copy(request.begin(), request.end(), std::ostream_iterator<char>(std::cout));
+        std::cout << std::endl;
+
+        command_response = std::bind(&lg_ip::command_handle_key_response, this, std::placeholders::_1);
+      }
+      else
+        throw std::runtime_error("Failed generation");
+        }*/
     else if(c.command == "HandleTouchMove" && c.args.size() == 2)
     {
       std::string body;

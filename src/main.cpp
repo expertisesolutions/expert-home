@@ -11,6 +11,7 @@
 #include <expert-home/devices/rs232.hpp>
 #include <expert-home/devices/denon-ip.hpp>
 #include <expert-home/devices/lg-ip.hpp>
+#include <expert-home/devices/lg-rs232.hpp>
 #include <expert-home/devices/input/roku-ip.hpp>
 #include <expert-home/devices/lua/device.hpp>
 #include <expert-home/devices/lua/input.hpp>
@@ -66,19 +67,27 @@ void callback_function(lua_State* L, luabind::object device, std::string command
   }
   std::endl(std::cout);
 
-  function.push(L);
-  device.push(L);
-  lua_pushstring(L, command.c_str());
-  for(auto const& arg : args)
+  std::cout << "function type " << luabind::type(function) << std::endl;
+  if(luabind::type(function) != LUA_TNIL)
   {
-    boost::apply_visitor(lua_push_visitor{L}, arg);
-  }
-  if(lua_pcall(L, 2 + args.size(), 0, 0))
-  {
-    std::cout << "failed calling device handler" << std::endl;
+    function.push(L);
+    device.push(L);
+    lua_pushstring(L, command.c_str());
+    for(auto const& arg : args)
+    {
+      boost::apply_visitor(lua_push_visitor{L}, arg);
+    }
+    if(lua_pcall(L, 2 + args.size(), 0, 0))
+    {
+      std::cout << "failed calling device handler" << std::endl;
 
-    std::cout << "Error: " << lua_tostring(L, -1) << std::endl;
-    lua_pop(L, -1);
+      std::cout << "Error: " << lua_tostring(L, -1) << std::endl;
+      lua_pop(L, -1);
+    }
+  }
+  else
+  {
+    std::cout << "Function is nil" << std::endl;
   }
 }
 
@@ -94,64 +103,76 @@ int main()
   eh::devices::lua::register_input(L);
   eh::register_schedule(io_service, L);
 
+  std::map<std::string, eh::device::lg_rs232> lg_rs232s;
   std::map<std::string, eh::device::lg_ip> lgs;
   std::map<std::string, eh::device::denon_ip> denons;
   std::map<std::string, eh::device::harmony_device> harmony_devices;
   std::map<std::string, eh::device::roku_ip> roku_ips;
 
-  eh::server::ssdp ssdp_server(io_service, 1900);
+  //eh::server::ssdp ssdp_server(io_service, 1900);
   
   luabind::module(L, "avail_devices")
   [
-     luabind::def("lg",
-                  luabind::tag_function<luabind::object(std::string, std::string, std::string, luabind::object)>
-                  ([&] (std::string name, std::string hostname, std::string pass
-                        , luabind::object function) -> luabind::object
+     luabind::def("lg_rs232",
+                  luabind::tag_function<luabind::object(std::string, std::string, luabind::object)>
+                  ([&] (std::string name, std::string device, luabind::object function) -> luabind::object
                   {
-                    auto iterator = lgs.emplace
-                      (name, eh::device::lg_ip{io_service, hostname, pass}).first;
+                    auto iterator = lg_rs232s.emplace
+                      (name, eh::device::lg_rs232{io_service, device}).first;
                     luabind::object lg_obj(L, eh::devices::lua::device(iterator->second));
                     iterator->second.watch(std::bind(&::callback_function, L, lg_obj, std::placeholders::_1, std::placeholders::_2
                                                      , function));
                     return lg_obj;
                   }))
-   , luabind::def("denon",
-                  luabind::tag_function<luabind::object(std::string, std::string, luabind::object)>
-                  ([&] (std::string name, std::string hostname, luabind::object function) -> luabind::object
-                  {
-                    auto iterator = denons.emplace
-                      (name, eh::device::denon_ip{io_service, hostname}).first;
-                    luabind::object denon_obj(L, eh::devices::lua::device(iterator->second));
-                    iterator->second.watch(std::bind(&::callback_function, L, denon_obj, std::placeholders::_1
-                                                     , std::placeholders::_2, function));
-                    return denon_obj;
-                  }))
-   , luabind::def("lg_power_on",
-                  luabind::tag_function<luabind::object(std::string, std::string, std::string, std::string, std::string
-                                                        , luabind::object)>
-                  ([&] (std::string name, std::string hostname, std::string device
-                        , std::string email, std::string password, luabind::object function) -> luabind::object
-                  {
-                    auto iterator = harmony_devices.emplace
-                      (name, eh::device::harmony_device{io_service, hostname, device, email, password}).first;
-                    luabind::object harmony_obj(L, eh::devices::lua::device(iterator->second));
-                    iterator->second.watch(std::bind(&::callback_function, L, harmony_obj, std::placeholders::_1
-                                                     , std::placeholders::_2, function));
-                    return harmony_obj;
-                  }))
-   , luabind::def("roku_ip",
-                  luabind::tag_function<luabind::object(std::string, std::string, unsigned short, luabind::object
-                                                        , std::string)>
-                  ([&] (std::string name, std::string listen_ip, unsigned short port
-                        , luabind::object function, std::string serial) -> luabind::object
-                  {
-                    auto iterator = roku_ips.emplace
-                      (name, eh::device::roku_ip{io_service, listen_ip, port, ssdp_server, serial}).first;
-                    luabind::object roku_obj(L, eh::devices::lua::input(iterator->second));
-                    iterator->second.watch(std::bind(&::callback_function, L, roku_obj, std::placeholders::_1
-                                                     , std::placeholders::_2, function));
-                    return roku_obj;
-                  }))
+   //   luabind::def("lg",
+   //                luabind::tag_function<luabind::object(std::string, std::string, std::string, luabind::object)>
+   //                ([&] (std::string name, std::string hostname, std::string pass
+   //                      , luabind::object function) -> luabind::object
+   //                {
+   //                  auto iterator = lgs.emplace
+   //                    (name, eh::device::lg_ip{io_service, hostname, pass}).first;
+   //                  luabind::object lg_obj(L, eh::devices::lua::device(iterator->second));
+   //                  iterator->second.watch(std::bind(&::callback_function, L, lg_obj, std::placeholders::_1, std::placeholders::_2
+   //                                                   , function));
+   //                  return lg_obj;
+   //                }))
+   // , luabind::def("denon",
+   //                luabind::tag_function<luabind::object(std::string, std::string, luabind::object)>
+   //                ([&] (std::string name, std::string hostname, luabind::object function) -> luabind::object
+   //                {
+   //                  auto iterator = denons.emplace
+   //                    (name, eh::device::denon_ip{io_service, hostname}).first;
+   //                  luabind::object denon_obj(L, eh::devices::lua::device(iterator->second));
+   //                  iterator->second.watch(std::bind(&::callback_function, L, denon_obj, std::placeholders::_1
+   //                                                   , std::placeholders::_2, function));
+   //                  return denon_obj;
+   //                }))
+   // , luabind::def("lg_power_on",
+   //                luabind::tag_function<luabind::object(std::string, std::string, std::string, std::string, std::string
+   //                                                      , luabind::object)>
+   //                ([&] (std::string name, std::string hostname, std::string device
+   //                      , std::string email, std::string password, luabind::object function) -> luabind::object
+   //                {
+   //                  auto iterator = harmony_devices.emplace
+   //                    (name, eh::device::harmony_device{io_service, hostname, device, email, password}).first;
+   //                  luabind::object harmony_obj(L, eh::devices::lua::device(iterator->second));
+   //                  iterator->second.watch(std::bind(&::callback_function, L, harmony_obj, std::placeholders::_1
+   //                                                   , std::placeholders::_2, function));
+   //                  return harmony_obj;
+   //                }))
+   // , luabind::def("roku_ip",
+   //                luabind::tag_function<luabind::object(std::string, std::string, unsigned short, luabind::object
+   //                                                      , std::string)>
+   //                ([&] (std::string name, std::string listen_ip, unsigned short port
+   //                      , luabind::object function, std::string serial) -> luabind::object
+   //                {
+   //                  auto iterator = roku_ips.emplace
+   //                    (name, eh::device::roku_ip{io_service, listen_ip, port, ssdp_server, serial}).first;
+   //                  luabind::object roku_obj(L, eh::devices::lua::input(iterator->second));
+   //                  iterator->second.watch(std::bind(&::callback_function, L, roku_obj, std::placeholders::_1
+   //                                                   , std::placeholders::_2, function));
+   //                  return roku_obj;
+   //                }))
   ];
 
   if(luaL_loadfile(L, "lua/setup.lua"))
@@ -170,7 +191,7 @@ int main()
     return -1;
   }
 
-  std::cout << "watching denon" << std::endl;
+  std::cout << "waiting requests" << std::endl;
   
   io_service.run();
 }

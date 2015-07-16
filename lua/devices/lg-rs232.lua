@@ -2,11 +2,14 @@
 local device = {
    data = {
       is_poweron = false,
+      is_videomuted = false,
       command = nil,
    },
    on_poweron_c = {},
    on_poweroff_c = {},
    on_currentchannel_c = {},
+   on_videomutedon_c = {},
+   on_videomutedoff_c = {},
 }
 
 function device.callback (d, command, arg1, arg2, arg3, arg4, arg5)
@@ -29,6 +32,20 @@ function device.callback (d, command, arg1, arg2, arg3, arg4, arg5)
             end
             device.on_poweron_c = {}
          end
+      elseif (command == 'd') then
+         if(arg3 == 0 and device.data.is_videomuted) then
+            device.data.is_videomuted = false
+            for i=1, #device.on_videomutedon_c do
+               device.on_videomutedon_c[i] ()
+            end
+            device.on_videomutedon_c = {}
+         elseif (arg3 == 1 and not device.data.is_videomuted) then
+            device.data.is_videomuted = true
+            for i=1, #device.on_videomutedoff_c do
+               device.on_videomutedoff_c[i] ()
+            end
+            device.on_videomutedoff_c = {}
+         end
       end
    end
 end
@@ -43,6 +60,15 @@ end
 
 function device.poweroff ()
    send_command('ka', {0})
+end
+function device.poweron ()
+   send_command('ka', {1})
+end
+function device.videomutedon ()
+   send_command('kd', {0})
+end
+function device.videomutedoff ()
+   send_command('kd', {1})
 end
 function device.channelup ()
    send_command('mc', {0})
@@ -142,11 +168,20 @@ end
 function device.on_poweroff(f)
    device.on_poweroff_c[#device.on_poweroff_c] = f
 end
+function device.on_videomutedon(f)
+   device.on_videomutedon_c[#device.on_videomutedon_c+1] = f
+end
+function device.on_videomutedoff(f)
+   device.on_videomutedoff_c[#device.on_videomutedoff_c] = f
+end
 function device.on_currentchannel(f)
    device.on_currentchannel_c[#device.on_currentchannel_c+1] = f
 end
 function device.is_poweron()
    send_command('ka', {0xff})
+end
+function device.is_videomutedon()
+   send_command('kd', {0xff})
 end
 
 return device

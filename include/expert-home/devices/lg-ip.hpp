@@ -131,7 +131,7 @@ void connection_data(boost::shared_ptr<struct task> task, boost::system::error_c
           std::cout << std::endl;
 
           std::string type;
-          fusion::vector2<std::string, std::string&> attr({}, type);
+          fusion::vector2<std::string, std::string&> attr(std::string{}, type);
           if(x3::parse(iterator, last
                        , x3::omit[x3::lit("<?xml version=\"1.0\" encoding=\"utf-8\"?><event><session>")]
                        >> +x3::digit

@@ -6,58 +6,27 @@
 #ifndef EXPERT_HOME_DEVICES_LUA_DEVICE_HPP
 #define EXPERT_HOME_DEVICES_LUA_DEVICE_HPP
 
+#include <expert-home/devices/device.hpp>
 #include <luabind/luabind.hpp>
 
 namespace eh { namespace devices { namespace lua {
 
-struct device_impl_base
-{
-  virtual ~device_impl_base();
-  virtual void send_command(std::string const& input
-                            , std::vector<argument_variant> const&) = 0;
-  virtual device_impl_base* clone() const = 0;
-};
-      
-template <typename T>
-struct device_impl : device_impl_base
-{
-  device_impl(T& impl)
-    : impl(&impl) {}
-
-  void send_command(std::string const& input, std::vector<argument_variant> const& args)
-  {
-    impl->send_command(input, args);
-  }
-
-  device_impl<T>* clone() const { return new device_impl<T>(*this); }
-  
-  T* impl;
-};
-      
 struct device
 {
-  template <typename T>
-  device(T& impl)
-    : impl(new device_impl<T>(impl))
+  device(eh::device::device_any& impl)
+    : impl(&impl)
   {
   }
   ~device()
   {
-    delete impl;
-  }
-  device(device& other)
-  {
-    impl = other.impl->clone();
   }
   device(device const& other)
   {
-    impl = other.impl->clone();
+    impl = other.impl;
   }
   device& operator=(device const& other)
   {
-    device_impl_base* x = other.impl->clone();
-    delete impl;
-    impl = x;
+    impl = other.impl;
     return *this;
   }
   device(device && other)
@@ -65,21 +34,39 @@ struct device
   {
     other.impl = 0;
   }
-  device& operator==(device&& other)
-  {
-    delete impl;
-    impl = other.impl;
-    other.impl = 0;
-    return *this;
-  }
 
+  // std::string name() const
+  // {
+  //   return impl->name();
+  // }
+  std::string type() const
+  {
+    return impl->type();
+  }
+  std::string var_type() const
+  {
+    return impl->var_type();
+  }
+  std::string gui_type() const
+  {
+    return impl->gui_type();
+  }
+  std::string state() const
+  {
+    return impl->state();
+  }
+  std::string io_type() const
+  {
+    return impl->io_type();
+  }
   void send_command(std::string const& input
                     , std::vector<argument_variant> const& args)
   {
-    impl->send_command(input, args);
+    std::function<void(boost::system::error_code, std::string)> f;
+    impl->send_command(input, args, f);
   }
   
-  device_impl_base* impl;
+  eh::device::device_any* impl;
 };
 
 inline int lua_send_command(lua_State* L)
@@ -93,6 +80,11 @@ inline void register_device(lua_State* L)
   [
    luabind::class_<device>("device")
    .def("send_command", &device::send_command)
+   .def("type", &device::type)
+   .def("var_type", &device::var_type)
+   .def("state", &device::state)
+   .def("io_type", &device::io_type)
+   .def("gui_type", &device::gui_type)
   ]
   ;
 }

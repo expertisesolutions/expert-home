@@ -21,6 +21,7 @@
 #include <boost/algorithm/string.hpp>
 
 #include <boost/fusion/adapted/std_pair.hpp>
+#include <boost/fusion/include/vector.hpp>
 
 #include <http-parsers/http/request_line.hpp>
 #include <http-parsers/http/header.hpp>
@@ -105,13 +106,14 @@ struct harmony_device
     fusion::vector5<const char*, const char*, char, char, std::vector<fusion::vector2<const char*, const char*>>> attr
       ("POST", "/CompositeSecurityServices/Security.svc/json/GetUserAuthToken"
        , '1', '1'
-       , {{"Host", " svcs.myharmony.com"}
-        , {"Content-Type", " application/json"}
+       , std::vector<fusion::vector2<const char*, const char*>>
+       {/*fusion::vector2<const char*, const char*>*/{"Host", " svcs.myharmony.com"}
+                , {"Content-Type", " application/json"}
         , {"charset", " utf-8"}
         , {"User-Agent", " curl/7.42.1"}
-        , {"Accept", " */*"}
+         , {"Accept", "*/*"}
         , {"Content-Length", length.c_str()}
-      });
+        });
     if(x3::generate(std::back_insert_iterator<std::vector<char>>(request)
                     , http_parsers::http::request_line >> *http_parsers::http::header
                     >> x3::omit["\r\n"] >> x3::omit[x3::string(body)]

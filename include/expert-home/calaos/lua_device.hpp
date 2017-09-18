@@ -1,0 +1,54 @@
+// Copyright Felipe Magno de Almeida 2015.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+#ifndef EXPERT_HOME_CALAOS_LUA_DEVICE_HPP
+#define EXPERT_HOME_CALAOS_LUA_DEVICE_HPP
+
+#include <luabind/luabind.hpp>
+
+namespace eh { namespace calaos {
+
+struct lua_device
+{
+  luabind::object object;
+
+  lua_device(luabind::object object) : object(object) {}
+
+  std::string name() const
+  {
+    std::cout << "calling name " << std::endl;
+    return luabind::call_function<std::string>(object["name"], object);
+  }
+  std::string type() const
+  {
+    std::cout << "calling  " << __func__ << std::endl;
+    return luabind::call_function<std::string>(object["type"], object);
+  }
+  std::string var_type() const
+  {
+    std::cout << "calling  " << __func__ << std::endl;
+    return luabind::call_function<std::string>(object["var_type"], object);
+  }
+  std::string gui_type() const
+  {
+    std::cout << "calling  " << __func__ << std::endl;
+    return luabind::call_function<std::string>(object["gui_type"], object);
+  }
+  std::string state() const
+  {
+    std::cout << "calling  " << __func__ << std::endl;
+    return luabind::call_function<std::string>(object["state"], object);
+  }
+  std::string io_type() const
+  {
+    std::cout << "calling  " << __func__ << std::endl;
+    return luabind::call_function<std::string>(object["io_type"], object);
+  }
+};
+    
+} }
+
+#endif
+

@@ -27,6 +27,26 @@ struct lg_rs232 {
   {
   }
 
+  std::string type()
+  {
+    return "TV";
+  }
+  std::string var_type()
+  {
+    return "string";
+  }
+  std::string gui_type()
+  {
+    return "unknown";
+  }
+  std::string state()
+  {
+    return "0";
+  }
+  std::string io_type()
+  {
+    return "output";
+  }
   void watch(std::function<void(std::string, std::vector<argument_variant>)> function)
   {
     callback = function;

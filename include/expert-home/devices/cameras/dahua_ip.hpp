@@ -44,6 +44,7 @@ struct dahua_ip : camera_base
 
     // s.content_type = "image/jpeg";
 
+    std::cout << "snapshot" << std::endl;
     socket_type socket(const_cast<socket_type&>(this->socket).get_io_service());
     snapshot_image s;
 
@@ -52,6 +53,7 @@ struct dahua_ip : camera_base
       httpc::stateful_connection httpc;
       resp_type resp;
       int tries = 0;
+      std::cout << "trying connection" << std::endl;
 
       do
       {
@@ -59,6 +61,7 @@ struct dahua_ip : camera_base
         socket.connect(endpoint);
         ++tries;
         req_type req {beast::http::verb::get, "/cgi-bin/snapshot.cgi" /*"?loginuse=admin&loginpas=elF19le"*/, 11};
+        // req.header["Host"] = "127.0.0.1";
         std::cout << "sending request" << std::endl << req << std::endl << "--eom--" << std::endl;
         httpc::write(socket, req, httpc);
 
@@ -67,7 +70,7 @@ struct dahua_ip : camera_base
         std::cout << "response" << std::endl << resp << std::endl << "--eom--" << std::endl;
         if(resp.result() == beast::http::status::unauthorized)
         {
-          httpc.authenticate("admin", "elF19le");
+          httpc.authenticate("admin", "admin");
         }
         socket.close();
       }

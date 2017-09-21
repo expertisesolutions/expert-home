@@ -99,21 +99,23 @@ struct harmony_device
     // svcs.myharmony.com
     std::string body = "{\"password\":\"elF19le\",\"email\": \"felipe.m.almeida@gmail.com\"}";
     std::string length = " ";
-    generate(std::back_insert_iterator<std::string>(length)
-             , x3::int_
-             , body.size());
+    x3::generate(std::back_insert_iterator<std::string>(length)
+                 , x3::int_
+                 , body.size());
     std::cout << "length " << length << std::endl << "|" << std::endl;;
+    typedef fusion::vector2<const char*, const char*> fv;
     fusion::vector5<const char*, const char*, char, char, std::vector<fusion::vector2<const char*, const char*>>> attr
       ("POST", "/CompositeSecurityServices/Security.svc/json/GetUserAuthToken"
        , '1', '1'
        , std::vector<fusion::vector2<const char*, const char*>>
-       {/*fusion::vector2<const char*, const char*>*/{"Host", " svcs.myharmony.com"}
-                , {"Content-Type", " application/json"}
-        , {"charset", " utf-8"}
-        , {"User-Agent", " curl/7.42.1"}
-         , {"Accept", "*/*"}
-        , {"Content-Length", length.c_str()}
-        });
+       {/*fusion::vector2<const char*, const char*>*/
+         fv{"Host", " svcs.myharmony.com"}
+        , fv{"Content-Type", " application/json"}
+        , fv{"charset", " utf-8"}
+        , fv{"User-Agent", " curl/7.42.1"}
+        , fv{"Accept", "*/*"}
+        , fv{"Content-Length", length.c_str()}
+       });
     if(x3::generate(std::back_insert_iterator<std::vector<char>>(request)
                     , http_parsers::http::request_line >> *http_parsers::http::header
                     >> x3::omit["\r\n"] >> x3::omit[x3::string(body)]

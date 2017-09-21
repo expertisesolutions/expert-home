@@ -219,7 +219,7 @@ int main()
   std::map<std::string, eh::device::device_any> device_map;
 
   cameras.insert(std::make_pair("camera_name", eh::device::camera::dahua_ip
-                                {{boost::asio::ip::address::from_string("192.168.33.251"), 80}, io_service}));
+                                {{boost::asio::ip::address::from_string("192.168.95.2"), 80}, io_service}));
   
   luabind::module(L, "avail_devices")
   [

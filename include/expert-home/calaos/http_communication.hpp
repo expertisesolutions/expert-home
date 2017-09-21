@@ -51,9 +51,9 @@ struct http_communication
     {
       set_options(boost::asio::ssl::context::default_workarounds);
       set_verify_mode(verify_none);
-      use_certificate_file("stage/newcert.pem", pem);
-      use_private_key_file("stage/privkey.pem", pem);
-      use_tmp_dh_file("stage/dh512.pem");
+      use_certificate_file("newcert.pem", pem);
+      use_private_key_file("privkey.pem", pem);
+      use_tmp_dh_file("dh512.pem");
     }
   } ssl_context;
   boost::asio::ip::tcp::acceptor acceptor;
@@ -225,7 +225,7 @@ struct http_communication
                   
                 function_url(map, *this);
               }
-              else if(req.method() == beast::http::verb::post && (api == "/api" || api == "/api.php") && question_mark == req.target().end())
+              else if(req.method() == beast::http::verb::post && (api == "/api" || api == "/api.php" || api == "/") && question_mark == req.target().end())
               {
                 std::cout << "A post with " << req.body << std::endl;
                 function(req.body, *this);

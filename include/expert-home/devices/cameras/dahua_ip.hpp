@@ -10,8 +10,10 @@
 #include <beast/core.hpp>
 #include <beast/http.hpp>
 #include <boost/archive/iterators/base64_from_binary.hpp>
+#include <boost/asio/spawn.hpp>
 #include <httpc/stateful_connection.hpp>
 #include <httpc/md5.hpp>
+#include <functional>
 
 #include <fstream>
 
@@ -28,101 +30,148 @@ struct dahua_ip : camera_base
   dahua_ip(endpoint_type endpoint, boost::asio::io_service& io_service)
     : endpoint(endpoint)
     , socket(io_service)
+    , strand(io_service)
   {
+    socket.open(boost::asio::ip::tcp::v4());
   }
 
-  snapshot_image snapshot() const
+  boost::unique_future<snapshot_image> snapshot() const
   {
-    // std::ifstream f("image.jpg");
-    // f.seekg(0, std::ios::end);
-    // std::size_t size = f.tellg();
-    // f.seekg(0, std::ios::beg);
-    // s.buffer.resize(size);
-
-    // if(size != 0)
-    //   f.rdbuf()->sgetn(&s.buffer[0], size);
-
-    // s.content_type = "image/jpeg";
-
     std::cout << "snapshot" << std::endl;
-    socket_type socket(const_cast<socket_type&>(this->socket).get_io_service());
-    snapshot_image s;
 
-    // try
+    boost::promise<snapshot_image> promise;
+    boost::unique_future<snapshot_image> future =  promise.get_future();
+
+    if(busy)
     {
-      httpc::stateful_connection httpc;
-      resp_type resp;
-      int tries = 0;
-      std::cout << "trying connection" << std::endl;
+      queued_promises.push_back(std::move(promise));
+      std::cout << "queued_promises size " << queued_promises.size() << std::endl;
+    }
+    else
+      run_snapshot(std::move(promise));
 
-      do
+    return future;
+  }
+
+  void run_snapshot(boost::promise<snapshot_image> promise) const
+  {
+    auto download = [this, promise{std::move(promise)}] (boost::asio::yield_context yield) mutable
       {
-        resp = {};
-        socket.connect(endpoint);
-        ++tries;
-        req_type req {beast::http::verb::get, "/cgi-bin/snapshot.cgi" /*"?loginuse=admin&loginpas=elF19le"*/, 11};
-        // req.header["Host"] = "127.0.0.1";
-        std::cout << "sending request" << std::endl << req << std::endl << "--eom--" << std::endl;
-        httpc::write(socket, req, httpc);
+        resp_type resp;
+        int tries = 0;
+        boost::system::error_code ec;
 
-        beast::multi_buffer sb;
-        httpc::read(socket, sb, resp, httpc);
-        std::cout << "response" << std::endl << resp << std::endl << "--eom--" << std::endl;
-        if(resp.result() == beast::http::status::unauthorized)
+        // boost::scoped_lock<boost::mutex> lock(mutex);
+        // if(        
+        
+        std::cout << "trying connection" << std::endl;
+
+        do
         {
-          httpc.authenticate("admin", "admin");
+          resp = {};
+          resp.result(beast::http::status::unknown);
+          ec = {};
+
+          std::cout << "resp is initialized with " << resp.result() << std::endl;
+          
+          if(!socket.is_open())
+          {
+            socket.close();
+            socket.open(boost::asio::ip::tcp::v4());
+            socket.async_connect(endpoint, yield[ec]);
+            if(ec) continue;
+          }
+          
+          ++tries;
+          req_type req {beast::http::verb::get, "/cgi-bin/snapshot.cgi", 11};
+          // req.header["Host"] = "127.0.0.1";
+          std::cout << "sending request" << std::endl << req << std::endl << "--eom--" << std::endl;
+          httpc::write(socket, req, httpc, ec);
+          if (ec == boost::asio::error::connection_reset
+              || ec == boost::asio::error::broken_pipe)
+          {
+            std::cout << "error sending request but is not connected, reconnecting" << std::endl;
+            socket.close();
+            socket.open(boost::asio::ip::tcp::v4());
+            socket.async_connect(endpoint, yield[ec]);
+            continue;
+          }
+          else if(ec)
+          {
+            std::cout << "error sending request " << ec.message() << std::endl;
+            //return promise.set_exception(boost::system::system_error(ec));
+            continue;
+          }
+
+          beast::multi_buffer sb;
+          httpc::async_read(socket, sb, resp, httpc, yield[ec]);
+          if(ec) continue;
+          // std::cout << "response" << std::endl << resp << std::endl << "--eom--" << std::endl;
+          if(resp.result() == beast::http::status::unauthorized)
+          {
+            httpc.authenticate("admin", "admin");
+          }
+          else if(resp.result() == beast::http::status::ok)
+          {
+            std::cout << "response is ok" << std::endl;
+          }
+          else
+          {
+            std::cout << "something weird " << resp.result() << std::endl;
+          }
+          // socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
         }
-        socket.close();
-      }
-      while(resp.result() == beast::http::status::unauthorized
-            && tries != 3);
+        while((
+               resp.result() == beast::http::status::unauthorized
+               || resp.result() == beast::http::status::unknown
+              )
+              && tries != 6);
       
-      // typedef boost::archive::iterators::base64_from_binary<
-      //   boost::archive::iterators::transform_width<
-      //     const char *
-      //     ,6
-      //     ,sizeof(char) * 8
-      //     >
-      //   > iterator_type;
+        // std::cout << "response" << std::endl << resp << std::endl << "--eom--" << std::endl;
 
-      // std::string credentials = "Basic ";
-      // static const char userpass[] = "admin:elF19le";
-      // std::copy(iterator_type(&userpass[0])
-      //           , iterator_type(&userpass[sizeof(userpass)-1])
-      //           , std::back_inserter(credentials));
-
-      // req_type req {beast::http::verb::get, "/cgi-bin/snapshot.cgi" /*"?loginuse=admin&loginpas=elF19le"*/, 11};
-      // // req.version = 11;
-      // // req.method = "GET";
-      // // req.url = "/cgi-bin/snapshot.cgi?loginuse=admin&loginpas=admin";
-      // req.set("Authorization", credentials);
-
-      // std::cout << "sending request" << std::endl << req << std::endl << "--eom--" << std::endl;
-      // beast::http::write(socket, req);
-
-      // beast::multi_buffer sb;
-    
-      // resp_type resp;
-      // beast::http::read(socket, sb, resp);
-
-      std::cout << "response" << std::endl << resp << std::endl << "--eom--" << std::endl;
-
-      if(resp.result() == beast::http::status::ok)
+        snapshot_image s;
+        if(resp.result() == beast::http::status::ok)
         {
           s.buffer.insert(s.buffer.begin(), resp.body.begin(), resp.body.end());
           s.content_type = "image/jpeg";
+          promise.set_value(std::move(s));
+          std::cout << "success receiving image size: " << resp.body.size() << std::endl;
         }
+        else
+        {
+          std::cout << "failed receiving any data" << std::endl;
+          promise.set_exception(boost::system::system_error(ec));
+        }
+
+        unbusy();
+      };
+
+    busy = true;
+    std::cout << "now busy, starting co-routine" << std::endl;
+    boost::asio::spawn(strand, std::move(download));
+  }
+
+  void unbusy() const
+  {
+    std::cout << "un-busying, ended co-routine" << std::endl;
+    if(!queued_promises.empty())
+    {
+      std::cout << "there are queued promises" << std::endl;
+      auto p = std::move(queued_promises.back());
+      queued_promises.pop_back();
+      run_snapshot(std::move(p));
     }
-    // catch(boost::exception& e)
-    // {
-    //   std::cout << "Error connecting" << std::endl;
-    // }
-    //http://192.168.33.5/cgi-bin/ptz.cgi?action=start&channel=0&code=PositionABS&arg1=0&arg2=80&arg3=0
-    return s;
+    else
+      busy = false;
   }
 
   endpoint_type endpoint;
-  socket_type socket;
+  mutable socket_type socket;
+  boost::asio::io_service::strand strand;
+  mutable httpc::stateful_connection httpc;
+
+  mutable bool busy = 0;
+  mutable std::vector<boost::promise<snapshot_image> > queued_promises;
 };
       
 } } }

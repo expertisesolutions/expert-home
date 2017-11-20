@@ -30,7 +30,7 @@ struct ostream_visitor
   }
 };
   
-std::ostream& operator<<(std::ostream& os, argument_variant const& v)
+inline std::ostream& operator<<(std::ostream& os, argument_variant const& v)
 {
   boost::apply_visitor(ostream_visitor{&os}, v);
   return os;

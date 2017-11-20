@@ -6,6 +6,10 @@
 #ifndef EXPERT_DEVICES_CAMERAS_CAMERA_BASE_HPP
 #define EXPERT_DEVICES_CAMERAS_CAMERA_BASE_HPP
 
+#include <future>
+
+#include <boost/thread/future.hpp>
+
 namespace eh { namespace device { namespace camera {
 
 struct snapshot_image
@@ -16,9 +20,10 @@ struct snapshot_image
       
 struct camera_base
 {
-  virtual snapshot_image snapshot()  const = 0;
+  virtual boost::unique_future<snapshot_image> snapshot()  const = 0;
 };
       
 } } }
 
 #endif
+

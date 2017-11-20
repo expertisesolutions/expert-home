@@ -33,6 +33,9 @@ void asynchronous_ssdp(boost::asio::io_service* service, std::vector<std::string
   ssdp_socket->async_receive_from
     (boost::asio::mutable_buffers_1(&ssdp_task->buffer[0], ssdp_task->buffer.size())
      , ssdp_task->remote_endpoint
+     
+     
+     
      // , [ssdp_task] (boost::system::error_code const& ec, std::size_t size)
      // {
      //   return x3::parse(ssdp_task->buffer.begin(), ssdp_task->buffer.begin() + size

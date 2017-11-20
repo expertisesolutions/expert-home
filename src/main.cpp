@@ -6,6 +6,8 @@
 #include <iostream>
 
 #include <boost/asio.hpp>
+#include <boost/algorithm/string/predicate.hpp>
+#include <boost/algorithm/string/trim_all.hpp>
 #include <expert-home/server/ssdp.hpp>
 #include <expert-home/devices/harmony-device.hpp>
 #include <expert-home/devices/output/milight.hpp>
@@ -15,6 +17,7 @@
 #include <expert-home/devices/lg-rs232.hpp>
 #include <expert-home/devices/input/roku-ip.hpp>
 #include <expert-home/devices/lua/device.hpp>
+#include <expert-home/devices/lua/harmony-device.hpp>
 #include <expert-home/devices/lua/input.hpp>
 #include <expert-home/devices/cameras/dahua_ip.hpp>
 #include <expert-home/schedule.hpp>
@@ -146,16 +149,33 @@ struct write_resp
 
   template <typename S>
   void operator()(S& socket) const
-  {}
+  {
+    std::cout << "just socket" << std::endl;
+  }
 
   void operator()(eh::calaos::http_communication::socket_wrapper& socket) const
   {
-    boost::system::error_code ec;
-    beast::http::write(*socket, resp, ec);
+    // boost::system::error_code ec;
+    beast::http::write(*socket, resp/*, ec*/);
   }
 
   eh::calaos::http_communication::resp_type const& resp;
 };
+
+template <typename L, typename R>
+R const& get_string_value(std::pair<L, R> const& pair)
+{
+  return pair.second;
+}
+template <typename L, typename R>
+R& get_string_value(std::pair<L, R>& pair)
+{
+  return pair.second;
+}
+std::string get_string_value(nlohmann::basic_json<> const& json)
+{
+  return json.get<std::string>();
+}
 
 int main()
 {
@@ -206,20 +226,45 @@ int main()
   
   luabind::open(L);
   eh::devices::lua::register_device(L);
+  eh::devices::lua::register_harmony_device(L);
   eh::devices::lua::register_input(L);
   eh::register_schedule(io_service, L);
 
   // std::map<std::string, eh::device::lg_rs232> lg_rs232s;
   // std::map<std::string, eh::device::lg_ip> lgs;
   // std::map<std::string, eh::device::denon_ip> denons;
-  // std::map<std::string, eh::device::harmony_device> harmony_devices;
+  std::map<std::string, eh::device::harmony_device> harmony_devices;
   // std::map<std::string, eh::device::roku_ip> roku_ips;
   // std::map<std::string, eh::device::output::milight_device> milights;
   std::map<std::string, eh::device::camera::dahua_ip> cameras;
   std::map<std::string, eh::device::device_any> device_map;
 
-  cameras.insert(std::make_pair("camera_name", eh::device::camera::dahua_ip
+  cameras.insert(std::make_pair("Liz Cama", eh::device::camera::dahua_ip
                                 {{boost::asio::ip::address::from_string("192.168.95.2"), 80}, io_service}));
+  cameras.insert(std::make_pair("Jantar Exterior", eh::device::camera::dahua_ip
+                                {{boost::asio::ip::address::from_string("192.168.95.3"), 80}, io_service}));
+  cameras.insert(std::make_pair("Piscina", eh::device::camera::dahua_ip
+                                {{boost::asio::ip::address::from_string("192.168.95.4"), 80}, io_service}));
+  cameras.insert(std::make_pair("Interfone", eh::device::camera::dahua_ip
+                                {{boost::asio::ip::address::from_string("192.168.95.5"), 80}, io_service}));
+  cameras.insert(std::make_pair("Carro", eh::device::camera::dahua_ip
+                                {{boost::asio::ip::address::from_string("192.168.95.6"), 80}, io_service}));
+  cameras.insert(std::make_pair("Liz Microfone", eh::device::camera::dahua_ip
+                                {{boost::asio::ip::address::from_string("192.168.95.7"), 80}, io_service}));
+  cameras.insert(std::make_pair("Sala Jantar", eh::device::camera::dahua_ip
+                                {{boost::asio::ip::address::from_string("192.168.95.8"), 80}, io_service}));
+  cameras.insert(std::make_pair("Poste", eh::device::camera::dahua_ip
+                                {{boost::asio::ip::address::from_string("192.168.95.9"), 80}, io_service}));
+  cameras.insert(std::make_pair("Brinquedoteca", eh::device::camera::dahua_ip
+                                {{boost::asio::ip::address::from_string("192.168.95.10"), 80}, io_service}));
+  cameras.insert(std::make_pair("Fundos", eh::device::camera::dahua_ip
+                                {{boost::asio::ip::address::from_string("192.168.95.11"), 80}, io_service}));
+  cameras.insert(std::make_pair("Cafofinho", eh::device::camera::dahua_ip
+                                {{boost::asio::ip::address::from_string("192.168.95.12"), 80}, io_service}));
+  cameras.insert(std::make_pair("Garagem", eh::device::camera::dahua_ip
+                                {{boost::asio::ip::address::from_string("192.168.95.13"), 80}, io_service}));
+  cameras.insert(std::make_pair("Jardim Inverno", eh::device::camera::dahua_ip
+                                {{boost::asio::ip::address::from_string("192.168.95.14"), 80}, io_service}));
   
   luabind::module(L, "avail_devices")
   [
@@ -235,8 +280,8 @@ int main()
      //                return lg_obj;
      //              }))
      //,
-   luabind::def("milight",
-                  luabind::tag_function<luabind::object(std::string, std::string)>
+   luabind::def("milight"
+                , luabind::tag_function<luabind::object(std::string, std::string)>
                   ([&] (std::string name, std::string hostname) -> luabind::object
                   {
                     auto iterator = device_map.emplace
@@ -246,6 +291,18 @@ int main()
                     //                                  , function));
                     return device;
                   }))
+   , luabind::def("harmony"
+                  , luabind::tag_function<luabind::object(std::string /*name*/, std::string /*hostname */, int /*port*/, std::string /* hubid */, std::string /* client_id */)>
+                  ([&] (std::string name, std::string hostname, int port, std::string hubid, std::string clientid) -> luabind::object
+                  {
+                    auto iterator = harmony_devices.emplace
+                      (name, eh::device::harmony_device{io_service, {boost::asio::ip::address::from_string(hostname), static_cast<unsigned short>(port)}, hubid, clientid}).first;
+                    luabind::object device(L, eh::devices::lua::harmony_device(iterator->second));
+                    // iterator->second.watch(std::bind(&::callback_function, L, lg_obj, std::placeholders::_1, std::placeholders::_2
+                    //                                  , function));
+                    return device;
+                  }))
+
    //   luabind::def("lg",
    //                luabind::tag_function<luabind::object(std::string, std::string, std::string, luabind::object)>
    //                ([&] (std::string name, std::string hostname, std::string pass
@@ -340,19 +397,25 @@ int main()
         , {"set_state", [&] (auto data, auto msg_id, auto& client)
            {
              // answer {"msg":"event","data":{"event_raw":"io_changed id:io_1 state:%23000000 state_int:0","type":"3","type_str":"io_changed","data":{"id":"io_1","state":"#000000","state_int":"0"}}}
-             std::cout << "set_state" << std::endl;
+             std::cout << "set_state " << data["value"] << std::endl;
              // nlohmann::json
 
-             std::string cmd;
-             if(false /*boost::string_algo::starts_with(data["value"], "set ")*/)
+             std::string value = boost::algorithm::trim_all_copy_if
+             (data["value"], [] (auto c)
                {
-                 
+                 return c == '"';
+               });
+
+             std::string cmd;
+             if(boost::algorithm::starts_with(value, "set "))
+               {
+                 cmd = std::string(data["value"]).substr(4);
                }
-             else if(data["value"] == "true")
+             else if(value == "true")
                {
                  cmd = "on";
                }
-             else if(data["value"] == "false")
+             else if(value == "false")
                {
                  cmd = "off";
                }
@@ -402,36 +465,85 @@ int main()
            };
            client.write(json.dump());
          }}
+        , {"set_state", [&] (auto data, auto msg_id, auto& client)
+         {
+           luabind::object devices(luabind::globals(L)["devices"]);
+           if(devices)
+           {
+             auto device = devices[get_string_value(data["id"])];
+             if(device)
+             {
+               eh::calaos::lua_device lua_device(device);
+               lua_device.send_command("command", {});
+             }
+           }             
+         }}
         , {"get_picture", [&] (auto data, auto msg_id, auto& client)
          {
-           std::cout << "get_picture" << std::endl;
+           // std::cout << "get_picture with data " << data  << std::endl;
+           std::cout << "get_picture of " << data.size()  << std::endl;
+           auto id = data.find("id");
+           // if(!data["id"])
+           if(id != data.end())
+           {
+             auto iterator = cameras.find(get_string_value(*id));
+             if(iterator != cameras.end())
+             {
+               boost::unique_future<eh::device::camera::snapshot_image> image
+                 = iterator->second.snapshot();
 
-           eh::calaos::http_communication::resp_type resp {beast::http::status::ok, 11};
-           resp.reason("OK");
-           // resp.status = 200;
-           // resp.version(11);
-           // resp.reason = "OK";
-
-           eh::device::camera::snapshot_image image
-           = cameras.find("camera_name")->second.snapshot();
+               image.then([&client] (boost::unique_future<eh::device::camera::snapshot_image> f)
+                          {
+                            std::cout << "received picture, answering" << std::endl;
+                            eh::calaos::http_communication::resp_type resp {beast::http::status::ok, 11};
+                            resp.reason("OK");
+                            std::cout << __FILE__ << ":" << __LINE__ << std::endl;
+                            
+                            eh::device::camera::snapshot_image image;
+                            try
+                            {
+                              image = f.get();
+                            }
+                            catch(...)
+                            {
+                              std::cout << "failed f.get()" << std::endl;
+                            }
+                            std::cout << __FILE__ << ":" << __LINE__ << std::endl;
+                            resp.set("Content-Type", image.content_type);
+                            resp.set("Content-Length", image.buffer.size());
+                            resp.body.insert(resp.body.begin(), image.buffer.begin(), image.buffer.end());
+                            std::cout << __FILE__ << ":" << __LINE__ << std::endl;
            
-           resp.set("Content-Type", image.content_type);
-           resp.set("Content-Length", image.buffer.size());
-           resp.body.insert(resp.body.begin(), image.buffer.begin(), image.buffer.end());
-           
-           write_resp w(resp);
+                            write_resp w(resp);
+                            std::cout << __FILE__ << ":" << __LINE__ << std::endl;
 
-           client.socket.apply_visitor(w);
-                                       /*[&] (auto& socket)
-                                         { beast::http::write(socket, resp); });*/
-           std::cout << "finished" << std::endl;
-           //client.close();
+                            try
+                            {
+                              std::cout << __FILE__ << ":" << __LINE__ << std::endl;
+                              client.socket.apply_visitor(w);
+                              std::cout << __FILE__ << ":" << __LINE__ << std::endl;
+                              /*[&] (auto& socket)
+                                { beast::http::write(socket, resp); });*/
+                              // client.close();
+                            }
+                            catch(...)
+                            {
+                              std::cout << "failed" << std::endl;
+                            }
+                            std::cout << "finished" << std::endl;
+                          });
+             }
+             else
+               client.close();
+           }
+           else
+             client.close();
          }}
       };
 
   auto calaosapi_demuxer = [&] (std::string const& json, auto& client)
        {
-         std::cout << "json " << json << std::endl;
+         std::cout << "api with json " << json << " size " << json.size() << std::endl;
 
          auto j = nlohmann::json::parse(json);
          auto msg = j["msg"].is_null() ? j["type"] : j["msg"];
@@ -442,7 +554,10 @@ int main()
                {
                  found = true;
                  std::string msg_id = j["msg_id"].is_null() ? "" : j["msg_id"].get<std::string>();
-                 api.function(j["data"], msg_id, client);
+                 if(j["data"].is_null())
+                   api.function(j, msg_id, client);
+                 else
+                   api.function(j["data"], msg_id, client);
                }
            }
          if(!found)
@@ -451,7 +566,7 @@ int main()
 
   auto calaosapi_url_demuxer = [&] (std::map<std::string, std::string> const& map, auto& client)
        {
-         std::cout << "api" << std::endl;
+         std::cout << "api with map " << map.size() << std::endl;
 
          for(auto&& api : calaosapi)
          {
@@ -474,6 +589,18 @@ int main()
   
 
   // std::cout << "waiting requests" << std::endl;
+
+  boost::asio::deadline_timer timer(io_service);
+  timer.expires_from_now(boost::posix_time::seconds(20));
+
+  timer.async_wait([&] (auto&&)
+                   {
+                     communication_api.broadcast_event
+                       (
+                        //"{\"msg\":\"event\", \"data\": {\"type_str\":\"touchscreen_camera_request\", \"data\": {\"id\": \"Fundos\"}, \"event_raw\": \"blablablablal\"} }\r\n"
+                        "{\"msg\":\"event\", \"data\": {\"type_str\":\"io_changed\", \"data\": {\"id\": \"net\"}, \"state\":\"true\", \"event_raw\": \"blablablablal\"} }\r\n"
+                       );
+                   });
   
   io_service.run();
 }

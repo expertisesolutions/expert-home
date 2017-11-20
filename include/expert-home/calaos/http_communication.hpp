@@ -16,6 +16,29 @@
 
 #include <utility>
 
+// events
+//  "io_added";
+//  "io_deleted";
+//  "io_changed";
+//  "io_prop_deleted";
+//  "room_added";
+//  "room_deleted";
+//  "room_changed";
+//  "room_prop_deleted";
+//  "timerange_changed";
+//  "scenario_added";
+//  "scenario_deleted";
+//  "scenario_changed";
+//  "audio_song_changed";
+//  "playlist_tracks_added";
+//  "playlist_tracks_deleted";
+//  "playlist_tracks_moved";
+//  "playlist_reload";
+//  "playlist_cleared";
+//  "audio_status_changed";
+//  "audio_volume_changed";
+//  "touchscreen_camera_request";
+
 namespace eh { namespace calaos {
 
 struct http_communication
@@ -139,7 +162,15 @@ struct http_communication
       template <typename S>
       void operator()(beast::websocket::stream<S>& stream, req_type& req, client& self) const
       {
-        stream.async_accept(req, std::bind(&client::on_upgrade, &self, std::placeholders::_1));
+        stream.async_accept_ex(req
+                               , [] (auto& r)
+                               {
+                                 r.insert("Access-Control-Allow-Headers", "Content-Type");
+                                 r.insert("Access-Control-Allow-Origin", "*");
+                                 r.insert("Access-Control-Allow-Methods", "GET");
+                                 r.insert("Access-Control-Allow-Credentials", "false");
+                               }
+                               , std::bind(&client::on_upgrade, &self, std::placeholders::_1));
       }
       template <typename...Args>
       void operator()(boost::blank const&, Args&&...) const
@@ -418,6 +449,18 @@ struct http_communication
     else
       {
         std::cout << "not accepted " << ec.message() << std::endl;
+      }
+  }
+
+  void broadcast_event(std::string json)
+  {
+    for(auto&& c : clients)
+      {
+        if(c.websocket)
+          {
+            client::websocket_data& ws = *c.websocket;
+            ws.stream.write(boost::asio::const_buffers_1(json.data(), json.size()));
+          }
       }
   }
 };

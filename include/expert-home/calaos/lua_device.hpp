@@ -16,6 +16,10 @@ struct lua_device
 
   lua_device(luabind::object object) : object(object) {}
 
+  bool has_name() const
+  {
+    return luabind::type(object["name"]) != LUA_TNIL;
+  }
   std::string name() const
   {
     std::cout << "calling name " << std::endl;
@@ -45,6 +49,10 @@ struct lua_device
   {
     std::cout << "calling  " << __func__ << std::endl;
     return luabind::call_function<std::string>(object["io_type"], object);
+  }
+  void send_command(std::string const& command, std::vector<argument_variant> const& args)
+  {
+    luabind::call_function<void>(object["send_command"], object, command, args);
   }
 };
     

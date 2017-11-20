@@ -7,13 +7,14 @@ project expert-home
 
 feature.feature spirit-debug : off on : link-incompatible ;
 
-exe expert-home : src/main.cpp
+exe expert-home : src/main.cpp src/harmony.cpp
   /boost//system /boost//signals /lua//lua
   /luabind//luabind /http-parsers//http-parsers
   /json-parsers//json-parsers /openssl//openssl/<link>static
   /beast//beast
   /json//json
-  /http-client//http-client
+  /http-client//http-client /boost//thread /boost//coroutine
+  /harmony//harmony
  : <include>include
 #   <include>$(BOOST_ROOT)
    <link>static:<linkflags>"-ldl"
@@ -27,6 +28,7 @@ exe expert-home : src/main.cpp
    <threading>multi
    <link>static
    <spirit-debug>on:<define>BOOST_SPIRIT_X3_DEBUG=1
+   <define>BOOST_THREAD_PROVIDES_FUTURE_CONTINUATION
  ;
 
 install stage : expert-home ;

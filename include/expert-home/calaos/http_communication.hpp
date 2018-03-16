@@ -15,6 +15,7 @@
 #include <beast/websocket/ssl.hpp>
 
 #include <utility>
+#include <list>
 
 // events
 //  "io_added";
@@ -150,7 +151,7 @@ struct http_communication
     
     void read()
     {
-      std::cout << "reading" << std::endl;
+      std::cout << "calaos http communication async reading" << std::endl;
       auto handler = std::bind(async_read_visitor{}, std::placeholders::_1
                                , std::ref(streambuf), std::ref(req), std::ref(*this));
       socket.apply_visitor(handler);
@@ -199,7 +200,7 @@ struct http_communication
     {
       if(!ec)
         {
-          std::cout << "read" << std::endl;
+          std::cout << "http calaos read request" << std::endl;
           std::cout << "request " << req << std::endl;
           if(beast::websocket::is_upgrade(req))
             {

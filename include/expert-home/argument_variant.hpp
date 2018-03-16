@@ -1,7 +1,13 @@
+// Copyright Felipe Magno de Almeida 2015.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
 #ifndef EXPERT_HOME_VARIANT_HPP
 #define EXPERT_HOME_VARIANT_HPP
 
 #include <boost/variant.hpp>
+#include <boost/spirit/home/x3.hpp>
 #include <luabind/luabind.hpp>
 
 #include <iosfwd>

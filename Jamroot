@@ -7,7 +7,7 @@ project expert-home
 
 feature.feature spirit-debug : off on : link-incompatible ;
 
-exe expert-home : src/main.cpp src/harmony.cpp
+exe expert-home : src/main.cpp src/harmony.cpp src/calaos_get_home.cpp
   /boost//system /boost//signals /lua//lua
   /luabind//luabind /http-parsers//http-parsers
   /json-parsers//json-parsers /openssl//openssl/<link>static

@@ -8,6 +8,9 @@
 #include <boost/asio.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string/trim_all.hpp>
+#include <boost/fusion/include/vector.hpp>
+#include <boost/fusion/include/make_vector.hpp>
+#include <boost/fusion/include/comparison.hpp>
 #include <expert-home/server/ssdp.hpp>
 #include <expert-home/devices/harmony-device.hpp>
 #include <expert-home/devices/output/milight.hpp>
@@ -17,6 +20,7 @@
 #include <expert-home/devices/lg-rs232.hpp>
 #include <expert-home/devices/input/roku-ip.hpp>
 #include <expert-home/devices/lua/device.hpp>
+#include <expert-home/devices/lua/camera.hpp>
 #include <expert-home/devices/lua/harmony-device.hpp>
 #include <expert-home/devices/lua/input.hpp>
 #include <expert-home/devices/cameras/dahua_ip.hpp>
@@ -226,6 +230,7 @@ int main()
   
   luabind::open(L);
   eh::devices::lua::register_device(L);
+  eh::devices::lua::register_camera(L);
   eh::devices::lua::register_harmony_device(L);
   eh::devices::lua::register_input(L);
   eh::register_schedule(io_service, L);
@@ -236,35 +241,35 @@ int main()
   std::map<std::string, eh::device::harmony_device> harmony_devices;
   // std::map<std::string, eh::device::roku_ip> roku_ips;
   // std::map<std::string, eh::device::output::milight_device> milights;
-  std::map<std::string, eh::device::camera::dahua_ip> cameras;
+  std::map<boost::fusion::vector3<std::string, unsigned short, int>, eh::device::camera::dahua_ip> cameras;
   std::map<std::string, eh::device::device_any> device_map;
 
-  cameras.insert(std::make_pair("Liz Cama", eh::device::camera::dahua_ip
-                                {{boost::asio::ip::address::from_string("192.168.95.2"), 80}, io_service}));
-  cameras.insert(std::make_pair("Jantar Exterior", eh::device::camera::dahua_ip
-                                {{boost::asio::ip::address::from_string("192.168.95.3"), 80}, io_service}));
-  cameras.insert(std::make_pair("Piscina", eh::device::camera::dahua_ip
-                                {{boost::asio::ip::address::from_string("192.168.95.4"), 80}, io_service}));
-  cameras.insert(std::make_pair("Interfone", eh::device::camera::dahua_ip
-                                {{boost::asio::ip::address::from_string("192.168.95.5"), 80}, io_service}));
-  cameras.insert(std::make_pair("Carro", eh::device::camera::dahua_ip
-                                {{boost::asio::ip::address::from_string("192.168.95.6"), 80}, io_service}));
-  cameras.insert(std::make_pair("Liz Microfone", eh::device::camera::dahua_ip
-                                {{boost::asio::ip::address::from_string("192.168.95.7"), 80}, io_service}));
-  cameras.insert(std::make_pair("Sala Jantar", eh::device::camera::dahua_ip
-                                {{boost::asio::ip::address::from_string("192.168.95.8"), 80}, io_service}));
-  cameras.insert(std::make_pair("Poste", eh::device::camera::dahua_ip
-                                {{boost::asio::ip::address::from_string("192.168.95.9"), 80}, io_service}));
-  cameras.insert(std::make_pair("Brinquedoteca", eh::device::camera::dahua_ip
-                                {{boost::asio::ip::address::from_string("192.168.95.10"), 80}, io_service}));
-  cameras.insert(std::make_pair("Fundos", eh::device::camera::dahua_ip
-                                {{boost::asio::ip::address::from_string("192.168.95.11"), 80}, io_service}));
-  cameras.insert(std::make_pair("Cafofinho", eh::device::camera::dahua_ip
-                                {{boost::asio::ip::address::from_string("192.168.95.12"), 80}, io_service}));
-  cameras.insert(std::make_pair("Garagem", eh::device::camera::dahua_ip
-                                {{boost::asio::ip::address::from_string("192.168.95.13"), 80}, io_service}));
-  cameras.insert(std::make_pair("Jardim Inverno", eh::device::camera::dahua_ip
-                                {{boost::asio::ip::address::from_string("192.168.95.14"), 80}, io_service}));
+  // cameras.insert(std::make_pair("Liz Cama", eh::device::camera::dahua_ip
+  //                               {{boost::asio::ip::address::from_string("192.168.95.2"), 80}, io_service}));
+  // cameras.insert(std::make_pair("Jantar Exterior", eh::device::camera::dahua_ip
+  //                               {{boost::asio::ip::address::from_string("192.168.95.3"), 80}, io_service}));
+  // cameras.insert(std::make_pair("Piscina", eh::device::camera::dahua_ip
+  //                               {{boost::asio::ip::address::from_string("192.168.95.4"), 80}, io_service}));
+  // cameras.insert(std::make_pair("Interfone", eh::device::camera::dahua_ip
+  //                               {{boost::asio::ip::address::from_string("192.168.95.5"), 80}, io_service}));
+  // cameras.insert(std::make_pair("Carro", eh::device::camera::dahua_ip
+  //                               {{boost::asio::ip::address::from_string("192.168.95.6"), 80}, io_service}));
+  // cameras.insert(std::make_pair("Liz Microfone", eh::device::camera::dahua_ip
+  //                               {{boost::asio::ip::address::from_string("192.168.95.7"), 80}, io_service}));
+  // cameras.insert(std::make_pair("Sala Jantar", eh::device::camera::dahua_ip
+  //                               {{boost::asio::ip::address::from_string("192.168.95.8"), 80}, io_service}));
+  // cameras.insert(std::make_pair("Poste", eh::device::camera::dahua_ip
+  //                               {{boost::asio::ip::address::from_string("192.168.95.9"), 80}, io_service}));
+  // cameras.insert(std::make_pair("Brinquedoteca", eh::device::camera::dahua_ip
+  //                               {{boost::asio::ip::address::from_string("192.168.95.10"), 80}, io_service}));
+  // cameras.insert(std::make_pair("Fundos", eh::device::camera::dahua_ip
+  //                               {{boost::asio::ip::address::from_string("192.168.95.11"), 80}, io_service}));
+  // cameras.insert(std::make_pair("Cafofinho", eh::device::camera::dahua_ip
+  //                               {{boost::asio::ip::address::from_string("192.168.95.12"), 80}, io_service}));
+  // cameras.insert(std::make_pair("Garagem", eh::device::camera::dahua_ip
+  //                               {{boost::asio::ip::address::from_string("192.168.95.13"), 80}, io_service}));
+  // cameras.insert(std::make_pair("Jardim Inverno", eh::device::camera::dahua_ip
+  //                               {{boost::asio::ip::address::from_string("192.168.95.14"), 80}, io_service}));
   
   luabind::module(L, "avail_devices")
   [
@@ -289,6 +294,29 @@ int main()
                     luabind::object device(L, eh::devices::lua::device(iterator->second));
                     // iterator->second.watch(std::bind(&::callback_function, L, lg_obj, std::placeholders::_1, std::placeholders::_2
                     //                                  , function));
+                    return device;
+                  }))
+   , luabind::def("dahua_ip"
+                  , luabind::tag_function
+                  <luabind::object(std::string, unsigned short, std::string, std::string, int channel)>
+                  ([&] (std::string hostname, unsigned short port
+                        , std::string username, std::string password
+                        , int channel) -> luabind::object
+                  {
+                    std::cout << "dahua_ip "<< hostname << std::endl;
+                    std::cout << "dahua_ip" << std::endl;
+                    // need to resolve host first
+                    cameras.insert
+                      (std::make_pair
+                       (
+                        boost::fusion::make_vector(hostname, port, channel)
+                        , eh::device::camera::dahua_ip
+                            {{boost::asio::ip::address::from_string(hostname), port}
+                              , username, password, channel, io_service}
+                       ));
+                    std::cout << "dahua_ip" << std::endl;
+                    luabind::object device(L, eh::devices::lua::camera{hostname, port, channel});
+                    std::cout << "dahua_ip" << std::endl;
                     return device;
                   }))
    , luabind::def("harmony"
@@ -427,29 +455,35 @@ int main()
                  iterator->second.send_command(cmd, {}
                     , [&,msg_id] (auto ec, auto new_state)
                     {
-             //          std::string raw = "io_changed id:";
-             //          raw += data["id"];
-             //          raw += " state:%23000000 state_int:0";
-             //          nlohmann::json json =
-             //            {
-             //              {"msg", "event"}
-             //              , {"data"
-             //                 , {
-             //                     {"id", data["id"]}
-             //                     , {"event_raw", raw}
-             //                     , {"type", "3"}
-             //                     , {"type_str", "io_changed"}
-             //                     , {"data"
-             //                        , {
-             //                             {"id", data["id"]}
-             //                             , {"state", "#000000"}
-             //                             , {"state_int", "0"}}}}}
-             //            };
+                      std::string raw = "io_changed id:";
+                      raw += data["id"];
+                      raw += " state:%23000000 state_int:0";
+                      nlohmann::json json =
+                        {
+                          {"msg", "event"}
+                          , {"data"
+                             , {
+                                 {"id", data["id"]}
+                                 , {"event_raw", raw}
+                                 , {"type", "3"}
+                                 , {"type_str", "io_changed"}
+                                 , {"data"
+                                    , {
+                                         {"id", data["id"]}
+                                         , {"state", "#000000"}
+                                         , {"state_int", "0"}}}}}
+                        };
+                      std::cout << "client write json dump " << json.dump() << std::endl;
+                      client.write(json.dump());
                       client.write("{\"msg\":\"set_state\",\"msg_id\":\"" +
                                    msg_id + "\",\"data\":{\"success\":\"true\"}}");
                     });
 
                  // should answer something
+               }
+             else
+               {
+                 std::cout << "not found" << std::endl;
                }
            }}
         , {"autoscenario", [&] (auto data, auto msg_id, auto& client)
@@ -465,19 +499,19 @@ int main()
            };
            client.write(json.dump());
          }}
-        , {"set_state", [&] (auto data, auto msg_id, auto& client)
-         {
-           luabind::object devices(luabind::globals(L)["devices"]);
-           if(devices)
-           {
-             auto device = devices[get_string_value(data["id"])];
-             if(device)
-             {
-               eh::calaos::lua_device lua_device(device);
-               lua_device.send_command("command", {});
-             }
-           }             
-         }}
+        // , {"set_state", [&] (auto data, auto msg_id, auto& client)
+        //  {
+        //    luabind::object devices(luabind::globals(L)["devices"]);
+        //    if(devices)
+        //    {
+        //      auto device = devices[get_string_value(data["id"])];
+        //      if(device)
+        //      {
+        //        eh::calaos::lua_device lua_device(device);
+        //        lua_device.send_command("command", {});
+        //      }
+        //    }             
+        //  }}
         , {"get_picture", [&] (auto data, auto msg_id, auto& client)
          {
            // std::cout << "get_picture with data " << data  << std::endl;
@@ -486,7 +520,28 @@ int main()
            // if(!data["id"])
            if(id != data.end())
            {
-             auto iterator = cameras.find(get_string_value(*id));
+             // std::vector<nlohmann::json> cameras;
+             luabind::object cameras_lua(luabind::globals(L)["cameras"]);
+             luabind::object camera;
+
+             boost::fusion::vector<std::string, unsigned short, int> key;
+             std::string string_id = get_string_value(*id);
+             if(luabind::type(cameras_lua) != LUA_TNIL && luabind::type(camera = cameras_lua[string_id]))
+             {
+               eh::devices::lua::camera c;
+               try {
+                 c = luabind::object_cast<eh::devices::lua::camera>(camera);
+               }
+               catch(std::exception const& e)
+                 {
+                   std::cout << "not camera " << e.what() << std::endl;
+                   throw;
+                 }
+               //if(c)
+                 {
+               key = boost::fusion::make_vector(c.hostname, c.port, c.channel);
+
+               auto iterator = cameras.find(key);
              if(iterator != cameras.end())
              {
                boost::unique_future<eh::device::camera::snapshot_image> image
@@ -504,9 +559,9 @@ int main()
                             {
                               image = f.get();
                             }
-                            catch(...)
+                            catch(std::exception& e)
                             {
-                              std::cout << "failed f.get()" << std::endl;
+                              std::cout << "failed f.get() " << e.what() << std::endl;
                             }
                             std::cout << __FILE__ << ":" << __LINE__ << std::endl;
                             resp.set("Content-Type", image.content_type);
@@ -532,6 +587,10 @@ int main()
                             }
                             std::cout << "finished" << std::endl;
                           });
+             }
+             else client.close();
+             }
+                 //else client.close();
              }
              else
                client.close();
@@ -595,10 +654,13 @@ int main()
 
   timer.async_wait([&] (auto&&)
                    {
+                     std::cout << "Sending broadcast event" << std::endl;
                      communication_api.broadcast_event
                        (
                         //"{\"msg\":\"event\", \"data\": {\"type_str\":\"touchscreen_camera_request\", \"data\": {\"id\": \"Fundos\"}, \"event_raw\": \"blablablablal\"} }\r\n"
-                        "{\"msg\":\"event\", \"data\": {\"type_str\":\"io_changed\", \"data\": {\"id\": \"net\"}, \"state\":\"true\", \"event_raw\": \"blablablablal\"} }\r\n"
+                        "{\"msg\":\"event\", \"data\": {\"type_str\":\"io_changed\", \"data\": {\"id\": \"net\", \"state\":\"true\", \"event_raw\": \"blablablablal\"} } }\r\n"
+                        //"{\"msg\":\"event\", \"data\": {\"type_str\":\"io_changed\", \"data\": {\"id\": \"dooralarm\", \"state\":\"true\", \"event_raw\": \"blablablablal\"} } }\r\n"
+                        //                        "{\"msg\":\"event\", \"data\": {\"type_str\":\"io_changed\", \"data\": {\"id\": \"net\", \"name\":\"Desligar TV\", \"event_raw\": \"blablablablal\"} } }\r\n"
                        );
                    });
   

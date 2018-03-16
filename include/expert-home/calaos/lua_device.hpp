@@ -8,6 +8,8 @@
 
 #include <luabind/luabind.hpp>
 
+#include <expert-home/argument_variant.hpp>
+
 namespace eh { namespace calaos {
 
 struct lua_device
